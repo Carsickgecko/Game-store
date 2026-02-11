@@ -4,11 +4,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { getCartItems, setCartItems } from "../store/storage.js";
 import { isAuthenticated } from "../store/auth.js";
 import { addToLibrary } from "../api/library.js";
+import { toImageUrl } from "../utils/image.js";
 
 const METHODS = [
   { id: "applepay", label: "Apple Pay", fee: 0, icon: "🍎" },
   { id: "revolut", label: "Revolut Pay", fee: 0, icon: "Ⓡ" },
-  { id: "card", label: "Thẻ (Card payment)", fee: 0, icon: "💳" },
+  { id: "card", label: "Card payment", fee: 0, icon: "💳" },
   { id: "paypal", label: "PayPal", fee: 0.2, icon: "🅿️" },
   { id: "qrcode", label: "QR Code", fee: 0.0, icon: "🔳" },
   { id: "blik", label: "BLIK", fee: 0.84, icon: "🔵" },
@@ -127,11 +128,9 @@ export default function Checkout() {
     }
 
     try {
-      // ✅ LƯU VÀO LIBRARY TRƯỚC
       const gameIds = items.map((it) => it.id);
       await addToLibrary(gameIds);
 
-      // ✅ clear cart + go thank you
       setCartItems([]);
       setItems([]);
       navigate("/thank-you");
@@ -272,7 +271,6 @@ export default function Checkout() {
               })}
             </div>
 
-            {/* Card payment */}
             {method === "card" && (
               <div className="mt-4 rounded-2xl border p-4 bg-black/5">
                 <div className="font-semibold">Card details</div>
@@ -368,9 +366,13 @@ export default function Checkout() {
             {items.map((it) => (
               <div key={it.id} className="flex items-center gap-3">
                 <img
-                  src={it.image}
+                  src={toImageUrl(it.image)}
                   alt={it.name}
                   className="w-12 h-12 rounded-xl object-cover border"
+                  loading="lazy"
+                  onError={(e) => {
+                    e.currentTarget.src = "/images/hero-bg.jpg";
+                  }}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium line-clamp-1">
