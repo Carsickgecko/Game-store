@@ -1,89 +1,82 @@
+import { useLanguage } from "../../contexts/LanguageContext.jsx";
+
 export default function AboutSection() {
+  const { t } = useLanguage();
+
+  const cards = [
+    { title: t("about.mission"), desc: t("about.missionDesc") },
+    { title: t("about.vision"), desc: t("about.visionDesc") },
+    { title: t("about.focus"), desc: t("about.focusDesc") },
+  ];
+
+  const tags = [
+    t("about.individuality"),
+    t("about.innovation"),
+    t("about.gamingCommunity"),
+    t("about.trustedKeys"),
+    t("about.playerFirst"),
+  ];
+
   return (
     <section
       id="about"
-      className="bg-neutral-950 text-white border-t border-white/10"
+      className="border-t border-white/10 bg-[#090714]/82 text-white backdrop-blur-md"
     >
-      <div className="max-w-6xl mx-auto px-4 py-16">
+      <div className="mx-auto max-w-6xl px-4 py-16">
         <div className="text-center">
-          <div className="inline-flex items-center gap-2 text-xs bg-white/10 border border-white/10 px-3 py-1 rounded-full">
-            About Us
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs">
+            {t("about.badge")}
           </div>
 
-          <h2 className="mt-5 text-3xl md:text-4xl font-bold">
-            Your Trusted Digital Game Key Store
+          <h2 className="mt-5 text-3xl font-bold md:text-4xl">
+            {t("about.title")}
           </h2>
 
-          <p className="mt-3 text-sm md:text-base text-white/70 max-w-3xl mx-auto">
-            We provide gamers with fast, secure, and affordable access to
-            digital game keys — with instant delivery and a smooth purchasing
-            experience.
+          <p className="mx-auto mt-3 max-w-3xl text-sm text-white/70 md:text-base">
+            {t("about.subtitle")}
           </p>
         </div>
 
-        {/* 3 cards */}
-        <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            {
-              title: "Our Mission",
-              desc: "Provide gamers with fast, secure, and affordable access to digital game keys from trusted platforms worldwide.",
-            },
-            {
-              title: "Our Vision",
-              desc: "Become a reliable destination for gamers by offering a wide selection of games, instant delivery, and a smooth checkout flow.",
-            },
-            {
-              title: "Our Focus",
-              desc: "Transparency, customer satisfaction, and secure transactions to ensure every purchase is simple and worry-free.",
-            },
-          ].map((x) => (
+        <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
+          {cards.map((item) => (
             <div
-              key={x.title}
-              className="rounded-2xl border border-white/10 bg-white/5 p-6"
+              key={item.title}
+              className="rounded-2xl border border-white/10 bg-white/6 p-6 backdrop-blur-sm"
             >
-              <div className="font-semibold">{x.title}</div>
-              <div className="mt-2 text-sm text-white/70 leading-relaxed">
-                {x.desc}
+              <div className="font-semibold">{item.title}</div>
+              <div className="mt-2 text-sm leading-relaxed text-white/70">
+                {item.desc}
               </div>
             </div>
           ))}
         </div>
 
-        {/* tags */}
         <div className="mt-10 text-center">
-          <div className="text-xs text-white/50">We believe in</div>
+          <div className="text-xs text-white/50">{t("about.believe")}</div>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {[
-              "Individuality",
-              "Innovation",
-              "Gaming Community",
-              "Trusted Keys",
-              "Player First",
-            ].map((t) => (
+            {tags.map((tag) => (
               <span
-                key={t}
-                className="text-xs px-3 py-2 rounded-full bg-white/10 border border-white/10"
+                key={tag}
+                className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs"
               >
-                {t}
+                {tag}
               </span>
             ))}
           </div>
         </div>
 
-        {/* bottom banner */}
-        <div className="mt-12 rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
+        <div className="mt-12 overflow-hidden rounded-3xl border border-white/10 bg-white/6 backdrop-blur-sm">
           <div className="p-8 md:p-10">
-            <div className="text-xs bg-white/10 inline-flex px-3 py-1 rounded-full border border-white/10">
-              Welcome to GameStore
+            <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs">
+              {t("about.welcome")}
             </div>
 
-            <div className="mt-4 text-2xl md:text-3xl font-bold">
-              Unlock Your Next Game
+            <div className="mt-4 text-2xl font-bold md:text-3xl">
+              {t("about.bannerTitle")}
             </div>
 
-            <div className="mt-2 text-white/70 max-w-2xl">
-              Digital keys delivered in seconds. Explore the store, grab deals,
-              and start playing tonight.
+            <div className="mt-2 max-w-2xl text-white/70">
+              {t("about.bannerSubtitle")}
             </div>
           </div>
         </div>

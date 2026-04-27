@@ -1,7 +1,10 @@
 import express from "express";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { getPool } from "../db.js";
+import authMiddleware from "../middleware/auth.js";
+import { clearAuthCookie, setAuthCookie } from "../utils/authCookie.js";
+import { ensureUsersProfileSchema } from "../utils/usersSchema.js";
 
 const router = express.Router();
 
@@ -19,6 +22,7 @@ router.post("/register", async (req, res) => {
     }
 
     const pool = await getPool();
+    await ensureUsersProfileSchema();
 
     // Check existing user
     const existing = await pool
@@ -47,7 +51,7 @@ router.post("/register", async (req, res) => {
       .input("fullName", fullName || null).query(`
         INSERT INTO dbo.Users 
         (Username, Email, PasswordHash, FullName, RoleId, IsActive)
-        OUTPUT INSERTED.UserId, INSERTED.Username, INSERTED.Email, INSERTED.FullName, INSERTED.RoleId
+        OUTPUT INSERTED.UserId, INSERTED.Username, INSERTED.Email, INSERTED.FullName, INSERTED.RoleId, INSERTED.AvatarUrl, INSERTED.PreferredLanguage
         VALUES (@username, @email, @hash, @fullName, 1, 1)
       `);
 
@@ -60,6 +64,8 @@ router.post("/register", async (req, res) => {
         email: user.Email,
         fullName: user.FullName,
         roleId: user.RoleId,
+        avatarUrl: user.AvatarUrl || null,
+        preferredLanguage: user.PreferredLanguage || "en",
       },
     });
   } catch (err) {
@@ -82,10 +88,11 @@ router.post("/login", async (req, res) => {
     }
 
     const pool = await getPool();
+    await ensureUsersProfileSchema();
 
     const found = await pool.request().input("email", email).query(`
         SELECT TOP 1 
-          UserId, Username, Email, PasswordHash, RoleId, IsActive
+          UserId, Username, Email, FullName, PasswordHash, RoleId, IsActive, AvatarUrl, PreferredLanguage
         FROM dbo.Users
         WHERE Email=@email
       `);
@@ -112,19 +119,67 @@ router.post("/login", async (req, res) => {
       { expiresIn: "7d" },
     );
 
+    setAuthCookie(res, token);
+
     res.json({
       token,
       user: {
         id: row.UserId,
         username: row.Username,
         email: row.Email,
+        fullName: row.FullName,
         roleId: row.RoleId,
+        avatarUrl: row.AvatarUrl || null,
+        preferredLanguage: row.PreferredLanguage || "en",
       },
     });
   } catch (err) {
     console.error("LOGIN ERROR:", err);
     res.status(500).json({ message: "Server error", detail: err.message });
   }
+});
+
+router.get("/me", authMiddleware, async (req, res) => {
+  try {
+    const userId = Number(req.user?.id);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const pool = await getPool();
+    await ensureUsersProfileSchema();
+
+    const result = await pool.request().input("userId", userId).query(`
+      SELECT TOP 1
+        UserId AS id,
+        Username AS username,
+        Email AS email,
+        FullName AS fullName,
+        RoleId AS roleId,
+        IsActive AS isActive,
+        AvatarUrl AS avatarUrl,
+        PreferredLanguage AS preferredLanguage
+      FROM dbo.Users
+      WHERE UserId = @userId AND IsActive = 1
+    `);
+
+    const user = result.recordset?.[0];
+    if (!user) {
+      clearAuthCookie(res);
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    return res.json({ user });
+  } catch (err) {
+    console.error("AUTH ME ERROR:", err);
+    return res.status(500).json({ message: "Server error", detail: err.message });
+  }
+});
+
+router.post("/logout", (req, res) => {
+  clearAuthCookie(res);
+  return res.json({ ok: true });
 });
 
 export default router;

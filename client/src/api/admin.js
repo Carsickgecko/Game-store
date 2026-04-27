@@ -34,6 +34,11 @@ export async function adminDeleteGame(id) {
   return res.data;
 }
 
+export async function adminPermanentDeleteGame(id) {
+  const res = await api.delete(`/api/v1/admin/games/${id}/permanent`);
+  return res.data;
+}
+
 export async function adminFetchUsers() {
   const res = await api.get("/api/v1/admin/users");
   return res.data?.data || [];

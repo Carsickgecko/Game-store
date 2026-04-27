@@ -1,15 +1,23 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { isAuthenticated, isAdmin, getUser } from "../store/auth.js";
+import { FiArrowLeft } from "react-icons/fi";
+import { getUser, isAdmin, isAuthenticated } from "../store/auth.js";
+import PageSurface from "../components/common/PageSurface.jsx";
+import { useLanguage } from "../contexts/LanguageContext.jsx";
 import {
-  adminFetchGames,
+  localizeGenre,
+  localizePlatform,
+} from "../utils/localizeStoreValue.js";
+import {
   adminCreateGame,
-  adminUpdateGame,
   adminDeleteGame,
-  uploadGameImage,
-  adminFetchUsers,
   adminDisableUser,
   adminEnableUser,
+  adminFetchGames,
+  adminFetchUsers,
+  adminPermanentDeleteGame,
+  adminUpdateGame,
+  uploadGameImage,
 } from "../api/admin.js";
 
 const emptyForm = {
@@ -24,81 +32,187 @@ const emptyForm = {
   isActive: true,
 };
 
+const shellClassName =
+  "border-white/8 !bg-none !bg-[#262626] text-white shadow-[0_34px_70px_-42px_rgba(0,0,0,0.95)]";
+const panelClassName =
+  "rounded-[28px] border border-white/8 bg-[#1d1d1d] p-6 shadow-[0_24px_50px_-36px_rgba(0,0,0,0.95)]";
+const labelClassName = "text-sm text-white/64";
+const inputClassName =
+  "mt-2 w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-white outline-none placeholder:text-white/28";
+const subtleButtonClassName =
+  "rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10";
+const accentButtonClassName =
+  "rounded-2xl bg-[#dc2626] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_-22px_rgba(220,38,38,0.95)] transition hover:bg-[#ef4444]";
+const dangerButtonClassName =
+  "rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-100 transition hover:border-red-500 hover:bg-red-600 hover:text-white";
+
+function GameRow({ game, onEdit, onDelete, onToggle, t }) {
+  return (
+    <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center">
+      <img
+        src={
+          game.image
+            ? game.image.startsWith("http")
+              ? game.image
+              : `http://localhost:5001${game.image}`
+            : "/images/hero-bg.jpg"
+        }
+        alt={game.name}
+        className="h-16 w-24 rounded-2xl border border-white/10 object-cover"
+      />
+
+      <div className="min-w-0 flex-1">
+        <div className="line-clamp-1 font-semibold text-white">
+          {game.name}
+          {!game.isActive ? (
+            <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-white/45">
+              {t("admin.disabled")}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-1 text-xs text-white/58">
+          {localizeGenre(game.genre, t)} · {localizePlatform(game.platform, t)} · $
+          {Number(game.price).toFixed(2)}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => onEdit(game)} className={accentButtonClassName}>
+          {t("admin.edit")}
+        </button>
+        <button type="button" onClick={() => onDelete(game)} className={dangerButtonClassName}>
+          {t("admin.delete")}
+        </button>
+        <button type="button" onClick={() => onToggle(game)} className={subtleButtonClassName}>
+          {game.isActive ? t("admin.disable") : t("admin.enable")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UserRow({ user, isMe, onDisable, onEnable, t }) {
+  return (
+    <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center">
+      <div className="min-w-0 flex-1">
+        <div className="line-clamp-1 font-semibold text-white">
+          {user.username}
+          {!user.isActive ? (
+            <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-white/45">
+              {t("admin.disabled")}
+            </span>
+          ) : null}
+          {isMe ? (
+            <span className="ml-2 rounded-full border border-[#dc2626]/30 bg-[#dc2626]/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-[#fca5a5]">
+              {t("admin.you")}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-1 text-xs text-white/58">
+          {user.email} · {t("admin.roleId")}: {user.roleId} · {t("admin.id")}:{" "}
+          {user.id}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {user.isActive ? (
+          <button
+            type="button"
+            disabled={isMe}
+            onClick={() => onDisable(user)}
+            className={`${subtleButtonClassName} ${
+              isMe ? "cursor-not-allowed opacity-40" : ""
+            }`}
+          >
+            {t("admin.disable")}
+          </button>
+        ) : (
+          <button type="button" onClick={() => onEnable(user)} className={accentButtonClassName}>
+            {t("admin.enable")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Admin() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
-  // ====== Tabs ======
-  const [tab, setTab] = useState("games"); // "games" | "users"
+  const [tab, setTab] = useState("games");
 
-  // ====== Games state ======
   const [games, setGames] = useState([]);
   const [loadingGames, setLoadingGames] = useState(true);
   const [errGames, setErrGames] = useState("");
-
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [uploading, setUploading] = useState(false);
 
-  // ====== Users state ======
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [errUsers, setErrUsers] = useState("");
 
-  const me = getUser(); // để tránh disable chính mình
+  const me = getUser();
 
-  // guard
   useEffect(() => {
-    if (!isAuthenticated()) return navigate("/login");
-    if (!isAdmin()) return navigate("/");
+    if (!isAuthenticated()) {
+      navigate("/login");
+      return;
+    }
+
+    if (!isAdmin()) {
+      navigate("/");
+    }
   }, [navigate]);
 
-  // ====== Load games ======
   const loadGames = useCallback(async () => {
     setLoadingGames(true);
     setErrGames("");
+
     try {
       const list = await adminFetchGames();
       setGames(Array.isArray(list) ? list : []);
-    } catch (e) {
-      setErrGames(e?.response?.data?.message || "Failed to load admin games.");
+    } catch (error) {
+      setErrGames(error?.response?.data?.message || t("admin.failedLoadGames"));
     } finally {
       setLoadingGames(false);
     }
-  }, []);
+  }, [t]);
 
-  // ====== Load users ======
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true);
     setErrUsers("");
+
     try {
       const list = await adminFetchUsers();
       setUsers(Array.isArray(list) ? list : []);
-    } catch (e) {
-      setErrUsers(e?.response?.data?.message || "Failed to load users.");
+    } catch (error) {
+      setErrUsers(error?.response?.data?.message || t("admin.failedLoadUsers"));
     } finally {
       setLoadingUsers(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
-    // load mặc định cho tab games + users (đỡ phải reload khi chuyển tab)
     loadGames();
     loadUsers();
   }, [loadGames, loadUsers]);
 
-  // ====== Games helpers ======
-  const onPickEdit = (g) => {
-    setEditingId(g.id);
+  const onPickEdit = (game) => {
+    setEditingId(game.id);
     setForm({
-      name: g.name || "",
-      price: g.price ?? "",
-      oldPrice: g.oldPrice ?? "",
-      rating: g.rating ?? "",
-      genre: g.genre || "Action",
-      platform: g.platform || "PC",
-      image: g.image || "",
-      longDescription: g.longDescription || "",
-      isActive: g.isActive !== false,
+      name: game.name || "",
+      price: game.price ?? "",
+      oldPrice: game.oldPrice ?? "",
+      rating: game.rating ?? "",
+      genre: game.genre || "Action",
+      platform: game.platform || "PC",
+      image: game.image || "",
+      longDescription: game.longDescription || "",
+      isActive: game.isActive !== false,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -110,20 +224,22 @@ export default function Admin() {
 
   const onUpload = async (file) => {
     if (!file) return;
+
     setUploading(true);
     setErrGames("");
+
     try {
       const url = await uploadGameImage(file);
-      setForm((s) => ({ ...s, image: url }));
-    } catch (e) {
-      setErrGames(e?.response?.data?.message || "Upload failed.");
+      setForm((current) => ({ ...current, image: url }));
+    } catch (error) {
+      setErrGames(error?.response?.data?.message || t("admin.uploadFailed"));
     } finally {
       setUploading(false);
     }
   };
 
-  const onSubmitGame = async (e) => {
-    e.preventDefault();
+  const onSubmitGame = async (event) => {
+    event.preventDefault();
     setErrGames("");
 
     const payload = {
@@ -135,399 +251,414 @@ export default function Admin() {
     };
 
     try {
-      if (editingId) await adminUpdateGame(editingId, payload);
-      else await adminCreateGame(payload);
+      if (editingId) {
+        await adminUpdateGame(editingId, payload);
+      } else {
+        await adminCreateGame(payload);
+      }
 
       await loadGames();
       onReset();
-    } catch (e2) {
-      setErrGames(e2?.response?.data?.message || "Save game failed.");
+    } catch (error) {
+      setErrGames(error?.response?.data?.message || t("admin.saveGameFailed"));
     }
   };
 
-  // Soft disable/enable game (tái dùng endpoint delete nếu backend bạn làm kiểu đó)
-  const onToggleGameActive = async (g) => {
+  const onToggleGameActive = async (game) => {
     setErrGames("");
+
     try {
-      if (g.isActive) {
-        if (!confirm("Disable this game (soft delete)?")) return;
-        await adminDeleteGame(g.id);
+      if (game.isActive) {
+        if (!confirm(t("admin.disableConfirm"))) return;
+        await adminDeleteGame(game.id);
       } else {
-        // nếu backend bạn có endpoint enable game riêng thì thay ở đây
-        // tạm thời: edit game và bật active lại
-        await adminUpdateGame(g.id, { ...g, isActive: 1 });
+        await adminUpdateGame(game.id, { ...game, isActive: 1 });
       }
+
       await loadGames();
-    } catch (e) {
-      setErrGames(e?.response?.data?.message || "Action failed.");
+    } catch (error) {
+      setErrGames(error?.response?.data?.message || t("admin.actionFailed"));
+    }
+  };
+
+  const onPermanentDeleteGame = async (game) => {
+    if (!confirm(t("admin.deleteConfirm", { name: game.name }))) {
+      return;
+    }
+
+    setErrGames("");
+
+    try {
+      await adminPermanentDeleteGame(game.id);
+      await loadGames();
+
+      if (Number(editingId) === Number(game.id)) {
+        onReset();
+      }
+    } catch (error) {
+      setErrGames(error?.response?.data?.message || t("admin.deleteGameFailed"));
+    }
+  };
+
+  const onDisableUser = async (user) => {
+    if (!confirm(t("admin.disableUserConfirm", { name: user.username }))) {
+      return;
+    }
+
+    setErrUsers("");
+
+    try {
+      await adminDisableUser(user.id);
+      await loadUsers();
+    } catch (error) {
+      setErrUsers(
+        error?.response?.data?.message || t("admin.disableUserFailed"),
+      );
+    }
+  };
+
+  const onEnableUser = async (user) => {
+    if (!confirm(t("admin.enableUserConfirm", { name: user.username }))) {
+      return;
+    }
+
+    setErrUsers("");
+
+    try {
+      await adminEnableUser(user.id);
+      await loadUsers();
+    } catch (error) {
+      setErrUsers(error?.response?.data?.message || t("admin.enableUserFailed"));
     }
   };
 
   const activeCount = useMemo(
-    () => games.filter((g) => g.isActive).length,
+    () => games.filter((game) => game.isActive).length,
     [games],
   );
-
-  // ====== Users helpers ======
-  const onDisableUser = async (u) => {
-    if (!confirm(`Disable user "${u.username}"?`)) return;
-    setErrUsers("");
-    try {
-      await adminDisableUser(u.id);
-      await loadUsers();
-    } catch (e) {
-      setErrUsers(e?.response?.data?.message || "Disable user failed.");
-    }
-  };
-
-  const onEnableUser = async (u) => {
-    if (!confirm(`Enable user "${u.username}"?`)) return;
-    setErrUsers("");
-    try {
-      await adminEnableUser(u.id);
-      await loadUsers();
-    } catch (e) {
-      setErrUsers(e?.response?.data?.message || "Enable user failed.");
-    }
-  };
-
   const userActiveCount = useMemo(
-    () => users.filter((u) => u.isActive).length,
+    () => users.filter((user) => user.isActive).length,
     [users],
   );
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Admin Panel</h1>
-          <p className="text-sm text-black/60">
-            Manage application • Games Active: <b>{activeCount}</b> /{" "}
-            {games.length} • Users Active: <b>{userActiveCount}</b> /{" "}
-            {users.length}
-          </p>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => setTab("games")}
-            className={`px-4 py-2 rounded-xl border text-sm transition ${
-              tab === "games" ? "bg-black text-white border-black" : "bg-white"
-            }`}
-          >
-            Manage games
-          </button>
-          <button
-            onClick={() => setTab("users")}
-            className={`px-4 py-2 rounded-xl border text-sm transition ${
-              tab === "users" ? "bg-black text-white border-black" : "bg-white"
-            }`}
-          >
-            Manage users
-          </button>
-        </div>
-      </div>
-
-      {/* =======================
-          TAB: GAMES
-         ======================= */}
-      {tab === "games" && (
-        <>
-          {errGames && (
-            <div className="mt-4 rounded-xl border px-4 py-3 text-sm bg-black text-white">
-              {errGames}
-            </div>
-          )}
-
-          {/* Form add/edit */}
-          <div className="mt-6 rounded-2xl border bg-white p-6">
-            <div className="flex items-center justify-between">
-              <div className="font-semibold">
-                {editingId ? `Edit game #${editingId}` : "Add new game"}
-              </div>
-              {editingId && (
-                <button onClick={onReset} className="text-sm underline">
-                  Cancel edit
-                </button>
-              )}
-            </div>
-
-            <form
-              onSubmit={onSubmitGame}
-              className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4"
+    <div className="mx-auto max-w-6xl px-4 py-10">
+      <PageSurface className={shellClassName}>
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <button
+              type="button"
+              onClick={() => navigate("/account")}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/78 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
             >
-              <div className="md:col-span-2">
-                <label className="text-sm text-black/70">Name</label>
-                <input
-                  value={form.name}
-                  onChange={(e) =>
-                    setForm((s) => ({ ...s, name: e.target.value }))
-                  }
-                  className="mt-2 w-full px-3 py-2 rounded-xl border outline-none"
-                  required
-                />
+              <FiArrowLeft className="size-4" />
+              {t("admin.backToAdminHome")}
+            </button>
+            <h1 className="mt-3 text-3xl font-bold text-white">{t("admin.title")}</h1>
+            <p className="mt-2 text-sm text-white/60">
+              {t("admin.subtitle", {
+                gamesActive: activeCount,
+                gamesTotal: games.length,
+                usersActive: userActiveCount,
+                usersTotal: users.length,
+              })}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setTab("games")}
+              className={`rounded-2xl border px-4 py-2.5 text-sm font-medium transition ${
+                tab === "games"
+                  ? "border-[#dc2626] bg-[#dc2626] text-white shadow-[0_18px_34px_-22px_rgba(220,38,38,0.95)]"
+                  : "border-white/10 bg-white/5 text-white/78 hover:border-white/20 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {t("admin.manageGames")}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab("users")}
+              className={`rounded-2xl border px-4 py-2.5 text-sm font-medium transition ${
+                tab === "users"
+                  ? "border-[#dc2626] bg-[#dc2626] text-white shadow-[0_18px_34px_-22px_rgba(220,38,38,0.95)]"
+                  : "border-white/10 bg-white/5 text-white/78 hover:border-white/20 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {t("admin.manageUsers")}
+            </button>
+          </div>
+        </div>
+
+        {tab === "games" ? (
+          <>
+            {errGames ? (
+              <div className="mt-6 rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                {errGames}
+              </div>
+            ) : null}
+
+            <section className={`mt-6 ${panelClassName}`}>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.28em] text-white/42">
+                    Game editor
+                  </div>
+                  <div className="mt-3 text-2xl font-semibold text-white">
+                    {editingId
+                      ? t("admin.editGame", { id: editingId })
+                      : t("admin.addNewGame")}
+                  </div>
+                  <p className="mt-2 text-sm text-white/58">
+                    Build and update store entries with the same dark dashboard style.
+                  </p>
+                </div>
+
+                {editingId ? (
+                  <button type="button" onClick={onReset} className={subtleButtonClassName}>
+                    {t("admin.cancelEdit")}
+                  </button>
+                ) : null}
               </div>
 
-              <div>
-                <label className="text-sm text-black/70">Price</label>
-                <input
-                  value={form.price}
-                  onChange={(e) =>
-                    setForm((s) => ({ ...s, price: e.target.value }))
-                  }
-                  className="mt-2 w-full px-3 py-2 rounded-xl border outline-none"
-                  inputMode="decimal"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-black/70">Old price</label>
-                <input
-                  value={form.oldPrice}
-                  onChange={(e) =>
-                    setForm((s) => ({ ...s, oldPrice: e.target.value }))
-                  }
-                  className="mt-2 w-full px-3 py-2 rounded-xl border outline-none"
-                  inputMode="decimal"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-black/70">Rating (0-5)</label>
-                <input
-                  value={form.rating}
-                  onChange={(e) =>
-                    setForm((s) => ({ ...s, rating: e.target.value }))
-                  }
-                  className="mt-2 w-full px-3 py-2 rounded-xl border outline-none"
-                  inputMode="decimal"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-black/70">Genre</label>
-                <input
-                  value={form.genre}
-                  onChange={(e) =>
-                    setForm((s) => ({ ...s, genre: e.target.value }))
-                  }
-                  className="mt-2 w-full px-3 py-2 rounded-xl border outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-black/70">Platform</label>
-                <input
-                  value={form.platform}
-                  onChange={(e) =>
-                    setForm((s) => ({ ...s, platform: e.target.value }))
-                  }
-                  className="mt-2 w-full px-3 py-2 rounded-xl border outline-none"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-sm text-black/70">Description</label>
-                <textarea
-                  value={form.longDescription}
-                  onChange={(e) =>
-                    setForm((s) => ({ ...s, longDescription: e.target.value }))
-                  }
-                  className="mt-2 w-full px-3 py-2 rounded-xl border outline-none min-h-[120px]"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-sm text-black/70">Image</label>
-                <div className="mt-2 flex flex-col md:flex-row gap-3 md:items-center">
+              <form
+                onSubmit={onSubmitGame}
+                className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2"
+              >
+                <div className="md:col-span-2">
+                  <label className={labelClassName}>{t("admin.name")}</label>
                   <input
-                    value={form.image}
-                    onChange={(e) =>
-                      setForm((s) => ({ ...s, image: e.target.value }))
+                    value={form.name}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
                     }
-                    className="flex-1 px-3 py-2 rounded-xl border outline-none"
-                    placeholder="/uploads/xxx.jpg or https://..."
+                    className={inputClassName}
+                    required
                   />
-                  <label className="px-4 py-2 rounded-xl border cursor-pointer text-sm w-fit">
-                    {uploading ? "Uploading..." : "Upload file"}
+                </div>
+
+                <div>
+                  <label className={labelClassName}>{t("admin.price")}</label>
+                  <input
+                    value={form.price}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        price: event.target.value,
+                      }))
+                    }
+                    className={inputClassName}
+                    inputMode="decimal"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClassName}>{t("admin.oldPrice")}</label>
+                  <input
+                    value={form.oldPrice}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        oldPrice: event.target.value,
+                      }))
+                    }
+                    className={inputClassName}
+                    inputMode="decimal"
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClassName}>{t("admin.rating")}</label>
+                  <input
+                    value={form.rating}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        rating: event.target.value,
+                      }))
+                    }
+                    className={inputClassName}
+                    inputMode="decimal"
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClassName}>{t("admin.genre")}</label>
+                  <input
+                    value={form.genre}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        genre: event.target.value,
+                      }))
+                    }
+                    className={inputClassName}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClassName}>{t("admin.platform")}</label>
+                  <input
+                    value={form.platform}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        platform: event.target.value,
+                      }))
+                    }
+                    className={inputClassName}
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className={labelClassName}>{t("admin.description")}</label>
+                  <textarea
+                    value={form.longDescription}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        longDescription: event.target.value,
+                      }))
+                    }
+                    className={`${inputClassName} min-h-[140px]`}
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className={labelClassName}>{t("admin.image")}</label>
+                  <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-center">
                     <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => onUpload(e.target.files?.[0])}
+                      value={form.image}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          image: event.target.value,
+                        }))
+                      }
+                      className={`flex-1 ${inputClassName.replace("mt-2 ", "")}`}
+                      placeholder={t("admin.imagePlaceholder")}
                     />
+
+                    <label className="w-fit cursor-pointer rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10">
+                      {uploading ? t("admin.uploading") : t("admin.uploadFile")}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => onUpload(event.target.files?.[0])}
+                      />
+                    </label>
+                  </div>
+
+                  {form.image ? (
+                    <img
+                      src={
+                        form.image.startsWith("http")
+                          ? form.image
+                          : `http://localhost:5001${form.image}`
+                      }
+                      alt={t("admin.previewAlt")}
+                      className="mt-4 h-44 w-full rounded-2xl border border-white/10 object-cover"
+                    />
+                  ) : null}
+                </div>
+
+                <div className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                  <input
+                    id="active"
+                    type="checkbox"
+                    checked={!!form.isActive}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        isActive: event.target.checked,
+                      }))
+                    }
+                    className="h-4 w-4 accent-[#dc2626]"
+                  />
+                  <label htmlFor="active" className="text-sm text-white/70">
+                    {t("admin.active")}
                   </label>
                 </div>
 
-                {form.image && (
-                  <img
-                    src={
-                      form.image.startsWith("http")
-                        ? form.image
-                        : `http://localhost:5001${form.image}`
-                    }
-                    alt="preview"
-                    className="mt-3 h-40 w-full object-cover rounded-xl border"
-                  />
-                )}
+                <button className={`md:col-span-2 w-full ${accentButtonClassName}`}>
+                  {editingId ? t("admin.saveChanges") : t("admin.addGame")}
+                </button>
+              </form>
+            </section>
+
+            <section className={`mt-8 ${panelClassName}`}>
+              <div className="flex items-center justify-between gap-3 border-b border-white/8 pb-4">
+                <div className="font-semibold text-white">{t("admin.gamesList")}</div>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/55">
+                  {games.length}
+                </span>
               </div>
 
-              <div className="md:col-span-2 flex items-center gap-3">
-                <input
-                  id="active"
-                  type="checkbox"
-                  checked={!!form.isActive}
-                  onChange={(e) =>
-                    setForm((s) => ({ ...s, isActive: e.target.checked }))
-                  }
-                />
-                <label htmlFor="active" className="text-sm text-black/70">
-                  Active (show in store)
-                </label>
-              </div>
-
-              <button className="md:col-span-2 w-full px-4 py-3 rounded-xl bg-black text-white">
-                {editingId ? "Save changes" : "Add game"}
-              </button>
-            </form>
-          </div>
-
-          {/* List */}
-          <div className="mt-8 rounded-2xl border bg-white overflow-hidden">
-            <div className="p-4 font-semibold">Games list</div>
-
-            {loadingGames ? (
-              <div className="p-4 text-black/60">Loading...</div>
-            ) : games.length === 0 ? (
-              <div className="p-4 text-black/60">No games.</div>
-            ) : (
-              <div className="divide-y">
-                {games.map((g) => (
-                  <div key={g.id} className="p-4 flex items-center gap-4">
-                    <img
-                      src={
-                        g.image
-                          ? g.image.startsWith("http")
-                            ? g.image
-                            : `http://localhost:5001${g.image}`
-                          : "/images/hero-bg.jpg"
-                      }
-                      alt={g.name}
-                      className="w-20 h-14 rounded-xl border object-cover"
+              {loadingGames ? (
+                <div className="py-4 text-white/60">{t("admin.loading")}</div>
+              ) : games.length === 0 ? (
+                <div className="py-4 text-white/60">{t("admin.noGames")}</div>
+              ) : (
+                <div className="mt-2 divide-y divide-white/8">
+                  {games.map((game) => (
+                    <GameRow
+                      key={game.id}
+                      game={game}
+                      onEdit={onPickEdit}
+                      onDelete={onPermanentDeleteGame}
+                      onToggle={onToggleGameActive}
+                      t={t}
                     />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold line-clamp-1">
-                        {g.name}{" "}
-                        {!g.isActive && (
-                          <span className="text-xs text-black/50">
-                            (disabled)
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-black/60">
-                        {g.genre} • {g.platform} • ${Number(g.price).toFixed(2)}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => onPickEdit(g)}
-                        className="px-3 py-2 rounded-xl border text-sm hover:bg-black hover:text-white transition"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => onToggleGameActive(g)}
-                        className="px-3 py-2 rounded-xl border text-sm hover:bg-black hover:text-white transition"
-                      >
-                        {g.isActive ? "Disable" : "Enable"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        ) : (
+          <>
+            {errUsers ? (
+              <div className="mt-6 rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                {errUsers}
               </div>
-            )}
-          </div>
-        </>
-      )}
+            ) : null}
 
-      {/* =======================
-          TAB: USERS
-         ======================= */}
-      {tab === "users" && (
-        <>
-          {errUsers && (
-            <div className="mt-4 rounded-xl border px-4 py-3 text-sm bg-black text-white">
-              {errUsers}
-            </div>
-          )}
-
-          <div className="mt-6 rounded-2xl border bg-white overflow-hidden">
-            <div className="p-4 font-semibold">Users list</div>
-
-            {loadingUsers ? (
-              <div className="p-4 text-black/60">Loading...</div>
-            ) : users.length === 0 ? (
-              <div className="p-4 text-black/60">No users.</div>
-            ) : (
-              <div className="divide-y">
-                {users.map((u) => {
-                  const isMe = Number(me?.id) === Number(u.id);
-                  return (
-                    <div key={u.id} className="p-4 flex items-center gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold line-clamp-1">
-                          {u.username}{" "}
-                          {!u.isActive && (
-                            <span className="text-xs text-black/50">
-                              (disabled)
-                            </span>
-                          )}
-                          {isMe && (
-                            <span className="ml-2 text-xs bg-black text-white px-2 py-0.5 rounded-full">
-                              you
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-black/60">
-                          {u.email} • roleId: {u.roleId} • id: {u.id}
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2">
-                        {u.isActive ? (
-                          <button
-                            disabled={isMe}
-                            onClick={() => onDisableUser(u)}
-                            className={`px-3 py-2 rounded-xl border text-sm transition ${
-                              isMe
-                                ? "opacity-40 cursor-not-allowed"
-                                : "hover:bg-black hover:text-white"
-                            }`}
-                          >
-                            Disable
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => onEnableUser(u)}
-                            className="px-3 py-2 rounded-xl border text-sm hover:bg-black hover:text-white transition"
-                          >
-                            Enable
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+            <section className={`mt-6 ${panelClassName}`}>
+              <div className="flex items-center justify-between gap-3 border-b border-white/8 pb-4">
+                <div className="font-semibold text-white">{t("admin.usersList")}</div>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/55">
+                  {users.length}
+                </span>
               </div>
-            )}
-          </div>
 
-          <div className="mt-4 text-xs text-black/60"></div>
-        </>
-      )}
+              {loadingUsers ? (
+                <div className="py-4 text-white/60">{t("admin.loading")}</div>
+              ) : users.length === 0 ? (
+                <div className="py-4 text-white/60">{t("admin.noUsers")}</div>
+              ) : (
+                <div className="mt-2 divide-y divide-white/8">
+                  {users.map((user) => (
+                    <UserRow
+                      key={user.id}
+                      user={user}
+                      isMe={Number(me?.id) === Number(user.id)}
+                      onDisable={onDisableUser}
+                      onEnable={onEnableUser}
+                      t={t}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </PageSurface>
     </div>
   );
 }

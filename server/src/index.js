@@ -11,31 +11,60 @@ import adminGamesRoutes from "./routes/admin.games.js";
 import adminUsersRoutes from "./routes/admin.users.js";
 import uploadsRoutes from "./routes/uploads.js";
 import homeRoutes from "./routes/home.js";
-
+import wishlistRoutes from "./routes/wishlist.js";
+import cartRoutes from "./routes/cart.js";
+import usersRoutes from "./routes/users.js";
+import achievementsRoutes from "./routes/achievements.js";
+import ordersRoutes from "./routes/orders.js";
+import aiRoutes from "./routes/ai.js";
+import reviewsRoutes from "./routes/reviews.js";
+import developersRoutes from "./routes/developers.js";
+import publicApiRoutes from "./routes/publicApi.js";
+import apiDocsRoutes from "./routes/apiDocs.js";
 const app = express();
+
+app.use(
+  cors((req, cb) => {
+    const origin = req.header("Origin");
+    const isPublicRoute =
+      req.path.startsWith("/api/v1/public") ||
+      req.path.startsWith("/api/v1/developers") ||
+      req.path === "/api/v1/docs" ||
+      req.path === "/api/v1/openapi.json";
+
+    if (!origin) {
+      return cb(null, {
+        origin: true,
+        credentials: !isPublicRoute,
+      });
+    }
+
+    if (isPublicRoute) {
+      return cb(null, {
+        origin: true,
+        credentials: false,
+      });
+    }
+
+    const okLocal = /^http:\/\/localhost:\d+$/.test(origin);
+    const okAzureStatic = /^https:\/\/.*\.azurestaticapps\.net$/.test(origin);
+    const okAzureWeb = /^https:\/\/.*\.azurewebsites\.net$/.test(origin);
+    const okAzureStorageStatic = /^https:\/\/.*\.web\.core\.windows\.net$/.test(origin);
+
+    if (okLocal || okAzureStatic || okAzureWeb || okAzureStorageStatic) {
+      return cb(null, {
+        origin: true,
+        credentials: true,
+      });
+    }
+
+    return cb(new Error("CORS blocked: " + origin));
+  }),
+);
 
 // ---------- Body parsing ----------
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
-
-// ---------- CORS ----------
-// Cho phép mọi port localhost để tránh Vite đổi port (5173/5174/5175...)
-// Nếu bạn muốn chặt hơn thì giữ whitelist, nhưng thường dev thì dùng regex này cho nhanh.
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true);
-
-      const okLocal = /^http:\/\/localhost:\d+$/.test(origin);
-      const okAzureStatic = /^https:\/\/.*\.azurestaticapps\.net$/.test(origin);
-      const okAzureWeb = /^https:\/\/.*\.azurewebsites\.net$/.test(origin);
-
-      if (okLocal || okAzureStatic || okAzureWeb) return cb(null, true);
-      return cb(new Error("CORS blocked: " + origin));
-    },
-    credentials: true,
-  }),
-);
 
 // ---------- Static: serve uploads ----------
 // Để ảnh dạng "/uploads/xxx.jpg" load được trên frontend
@@ -55,6 +84,16 @@ app.use("/api/v1/admin", adminUsersRoutes);
 
 app.use("/api/v1/uploads", uploadsRoutes);
 app.use("/api/v1/home", homeRoutes);
+app.use("/api/v1/wishlist", wishlistRoutes);
+app.use("/api/v1/cart", cartRoutes);
+app.use("/api/v1/users", usersRoutes);
+app.use("/api/v1/achievements", achievementsRoutes);
+app.use("/api/v1/orders", ordersRoutes);
+app.use("/api/v1/ai", aiRoutes);
+app.use("/api/v1/reviews", reviewsRoutes);
+app.use("/api/v1/developers", developersRoutes);
+app.use("/api/v1/public", publicApiRoutes);
+app.use("/api/v1", apiDocsRoutes);
 app.use(
   "/images",
   express.static(path.join(__dirname, "..", "public", "images")),

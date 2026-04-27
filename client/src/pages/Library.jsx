@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { fetchMyLibrary } from "../api/library.js";
 import ProductCard from "../components/product/ProductCard.jsx";
+import AccountShell from "../components/account/AccountShell.jsx";
+import { useLanguage } from "../contexts/LanguageContext.jsx";
 
 export default function Library() {
+  const { t } = useLanguage();
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -19,7 +22,7 @@ export default function Library() {
         setGames(Array.isArray(list) ? list : []);
       } catch (e) {
         if (!alive) return;
-        setErr(e?.response?.data?.message || "Failed to load library.");
+        setErr(e?.response?.data?.message || t("library.failedLoad"));
       } finally {
         if (alive) setLoading(false);
       }
@@ -28,34 +31,34 @@ export default function Library() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [t]);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold">My Library</h1>
-      <p className="text-sm text-black/60">Games you own</p>
+    <AccountShell
+      title={t("library.title")}
+      description={t("library.description")}
+    >
+      {loading ? <div className="text-white/60">{t("common.loading")}</div> : null}
 
-      {loading && <div className="mt-6 text-black/60">Loading...</div>}
-
-      {err && (
-        <div className="mt-6 rounded-xl border px-4 py-3 text-sm bg-black text-white">
+      {err ? (
+        <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
           {err}
         </div>
-      )}
+      ) : null}
 
-      {!loading && !err && games.length === 0 && (
-        <div className="mt-6 text-black/60">
-          Library trống. Hãy mua game (checkout) để lưu vào thư viện.
+      {!loading && !err && games.length === 0 ? (
+        <div className="rounded-[28px] border border-white/8 bg-[#1d1d1d] px-6 py-10 text-white/60">
+          {t("library.empty")}
         </div>
-      )}
+      ) : null}
 
-      {!loading && !err && games.length > 0 && (
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      {!loading && !err && games.length > 0 ? (
+        <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
           {games.map((g) => (
             <ProductCard key={g.id} product={g} mode="library" />
           ))}
         </div>
-      )}
-    </div>
+      ) : null}
+    </AccountShell>
   );
 }

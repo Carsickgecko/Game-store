@@ -1,158 +1,228 @@
-// server/src/routes/home.js
 import express from "express";
 import { getPool } from "../db.js";
+import { ensureOrdersSchema } from "./orders.js";
 
 const router = express.Router();
 
-// Helper: tránh null/undefined làm crash
-function safeNum(v, fallback = 0) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
+function toNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
 }
 
-// Helper: limit an toàn
 function clampInt(value, fallback, min, max) {
-  const n = parseInt(value, 10);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(max, Math.max(min, n));
+  const numeric = parseInt(value, 10);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, numeric));
 }
 
-/**
- * GET /api/v1/home/top-deals?limit=6
- * Trả danh sách game có discount tốt (oldPrice > price) và đang Active
- */
+function getDiscountAmount(game) {
+  return Math.max(0, toNumber(game?.oldPrice) - toNumber(game?.price));
+}
+
+function getDiscountPercent(game) {
+  const price = toNumber(game?.price);
+  const oldPrice = toNumber(game?.oldPrice);
+
+  if (oldPrice <= 0 || oldPrice <= price) {
+    return 0;
+  }
+
+  return Math.round(((oldPrice - price) / oldPrice) * 100);
+}
+
+function sortDiscountedGames(games) {
+  return [...(Array.isArray(games) ? games : [])]
+    .filter((game) => getDiscountPercent(game) > 0)
+    .sort((left, right) => {
+      const percentDiff = getDiscountPercent(right) - getDiscountPercent(left);
+      if (percentDiff !== 0) {
+        return percentDiff;
+      }
+
+      const amountDiff = getDiscountAmount(right) - getDiscountAmount(left);
+      if (amountDiff !== 0) {
+        return amountDiff;
+      }
+
+      const ratingDiff = toNumber(right?.rating) - toNumber(left?.rating);
+      if (ratingDiff !== 0) {
+        return ratingDiff;
+      }
+
+      return toNumber(right?.id) - toNumber(left?.id);
+    });
+}
+
+function getUtcDayOffset() {
+  const now = new Date();
+  const startOfYear = Date.UTC(now.getUTCFullYear(), 0, 1);
+  const today = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+
+  return Math.floor((today - startOfYear) / 86400000);
+}
+
+function rotateDaily(items) {
+  if (!Array.isArray(items) || items.length <= 1) {
+    return Array.isArray(items) ? items : [];
+  }
+
+  const offset = getUtcDayOffset() % items.length;
+  return items.slice(offset).concat(items.slice(0, offset));
+}
+
+export const homeRouteTestUtils = {
+  toNumber,
+  clampInt,
+  getDiscountAmount,
+  getDiscountPercent,
+  sortDiscountedGames,
+  getUtcDayOffset,
+  rotateDaily,
+};
+
+async function fetchActiveGames(pool) {
+  const result = await pool.request().query(`
+    SELECT
+      GameId AS id,
+      Name AS name,
+      Price AS price,
+      OldPrice AS oldPrice,
+      Rating AS rating,
+      Genre AS genre,
+      Platform AS platform,
+      ImageUrl AS image,
+      Description AS longDescription,
+      IsActive AS isActive
+    FROM dbo.Games
+    WHERE ISNULL(IsActive, 1) = 1
+  `);
+
+  return result.recordset || [];
+}
+
 router.get("/top-deals", async (req, res) => {
   try {
     const limit = clampInt(req.query.limit, 6, 1, 20);
     const pool = await getPool();
+    const games = await fetchActiveGames(pool);
+    const deals = sortDiscountedGames(games).slice(0, limit);
 
-    // ✅ SỬA: ImageUrl + Description (đúng schema DB của bạn)
-    const result = await pool.request().query(`
-      SELECT
-        GameId AS id,
-        Name AS name,
-        Price AS price,
-        OldPrice AS oldPrice,
-        Rating AS rating,
-        Genre AS genre,
-        Platform AS platform,
-        ImageUrl AS image,
-        Description AS longDescription,
-        IsActive AS isActive
-      FROM dbo.Games
-      WHERE IsActive = 1
-    `);
-
-    const rows = result.recordset || [];
-
-    // Chỉ tính deal nếu có oldPrice và oldPrice > price
-    const deals = rows
-      .filter((g) => safeNum(g.oldPrice, 0) > safeNum(g.price, 0))
-      .sort((a, b) => {
-        const da = safeNum(a.oldPrice, 0) - safeNum(a.price, 0);
-        const db = safeNum(b.oldPrice, 0) - safeNum(b.price, 0);
-        return db - da;
-      })
-      .slice(0, limit);
-
-    res.json({ data: deals });
+    return res.json({ data: deals });
   } catch (err) {
     console.error("HOME TOP DEALS ERROR:", err);
-    res.status(500).json({ message: "Server error", detail: err.message });
+    return res.status(500).json({ message: "Server error", detail: err.message });
   }
 });
 
-/**
- * GET /api/v1/home/highlight
- * Trả 1 game làm highlight (ưu tiên deal tốt nhất, nếu không có thì lấy game mới nhất)
- */
 router.get("/highlight", async (req, res) => {
   try {
     const pool = await getPool();
+    const games = await fetchActiveGames(pool);
+    const highlight = sortDiscountedGames(games)[0] || null;
 
-    // ✅ SỬA: ImageUrl + Description
-    const result = await pool.request().query(`
-      SELECT TOP 1
-        GameId AS id,
-        Name AS name,
-        Price AS price,
-        OldPrice AS oldPrice,
-        Rating AS rating,
-        Genre AS genre,
-        Platform AS platform,
-        ImageUrl AS image,
-        Description AS longDescription,
-        IsActive AS isActive
-      FROM dbo.Games
-      WHERE IsActive = 1
-      ORDER BY
-        CASE WHEN OldPrice IS NOT NULL AND OldPrice > Price THEN (OldPrice - Price) ELSE 0 END DESC,
-        GameId DESC
-    `);
-
-    const highlight = result.recordset?.[0] || null;
-    res.json({ data: highlight });
+    return res.json({ data: highlight });
   } catch (err) {
     console.error("HOME HIGHLIGHT ERROR:", err);
-    res.status(500).json({ message: "Server error", detail: err.message });
+    return res.status(500).json({ message: "Server error", detail: err.message });
   }
 });
 
-/**
- * GET /api/v1/home/slider
- * Trả slides cho HeroSlider:
- * - slide 1: promo cố định
- * - slide 2: highlight (nếu có)
- */
 router.get("/slider", async (req, res) => {
   try {
+    const limit = clampInt(req.query.limit, 6, 1, 10);
     const pool = await getPool();
+    const games = await fetchActiveGames(pool);
 
-    // ✅ SỬA: ImageUrl
-    const r = await pool.request().query(`
-      SELECT TOP 1
-        GameId AS id,
-        Name AS name,
-        Price AS price,
-        OldPrice AS oldPrice,
-        ImageUrl AS image
-      FROM dbo.Games
-      WHERE IsActive = 1
-      ORDER BY
-        CASE WHEN OldPrice IS NOT NULL AND OldPrice > Price THEN (OldPrice - Price) ELSE 0 END DESC,
-        GameId DESC
-    `);
+    const discountedCandidates = rotateDaily(
+      sortDiscountedGames(games).slice(0, Math.max(limit * 3, limit)),
+    );
 
-    const h = r.recordset?.[0] || null;
+    const discountedIds = new Set(discountedCandidates.map((game) => Number(game.id)));
+    const fallbackGames = [...games]
+      .filter((game) => !discountedIds.has(Number(game.id)))
+      .sort((left, right) => {
+        const ratingDiff = toNumber(right?.rating) - toNumber(left?.rating);
+        if (ratingDiff !== 0) {
+          return ratingDiff;
+        }
 
-    const slides = [
-      {
-        title: "Top deals this week",
-        subtitle: "Find discounts and instant delivery.",
-        image: "/images/hero-bg.jpg",
-        badge: "Hot",
-        to: "/catalog",
-        secondaryTo: "/catalog",
-        sectionTitle: "New Releases",
-      },
-    ];
-
-    if (h) {
-      slides.push({
-        title: h.name,
-        subtitle: "Best discount right now.",
-        image: h.image || "/images/hero-bg.jpg",
-        badge: "-%",
-        to: `/product/${h.id}`,
-        secondaryTo: "/catalog",
-        sectionTitle: "New Releases",
+        return toNumber(right?.id) - toNumber(left?.id);
       });
-    }
 
-    res.json({ data: slides });
+    const slides = [...discountedCandidates, ...fallbackGames].slice(0, limit);
+
+    return res.json({ data: slides });
   } catch (err) {
     console.error("HOME SLIDER ERROR:", err);
-    res.status(500).json({ message: "Server error", detail: err.message });
+    return res.status(500).json({ message: "Server error", detail: err.message });
+  }
+});
+
+router.get("/bestsellers", async (req, res) => {
+  try {
+    const limit = clampInt(req.query.limit, 6, 1, 20);
+    const pool = await getPool();
+    await ensureOrdersSchema(pool);
+
+    const result = await pool.request().query(`
+      SELECT TOP (${limit})
+        g.GameId AS id,
+        g.Name AS name,
+        g.Price AS price,
+        g.OldPrice AS oldPrice,
+        g.Rating AS rating,
+        g.Genre AS genre,
+        g.Platform AS platform,
+        g.ImageUrl AS image,
+        g.Description AS longDescription,
+        SUM(ISNULL(oi.Qty, 0)) AS soldCount
+      FROM dbo.Games g
+      INNER JOIN dbo.OrderItems oi ON oi.GameId = g.GameId
+      INNER JOIN dbo.Orders o ON o.OrderId = oi.OrderId
+      WHERE ISNULL(g.IsActive, 1) = 1
+      GROUP BY
+        g.GameId,
+        g.Name,
+        g.Price,
+        g.OldPrice,
+        g.Rating,
+        g.Genre,
+        g.Platform,
+        g.ImageUrl,
+        g.Description
+      ORDER BY
+        SUM(ISNULL(oi.Qty, 0)) DESC,
+        ISNULL(g.Rating, 0) DESC,
+        g.GameId DESC
+    `);
+
+    const bestsellers = result.recordset || [];
+    if (bestsellers.length > 0) {
+      return res.json({ data: bestsellers });
+    }
+
+    const fallback = (await fetchActiveGames(pool))
+      .sort((left, right) => {
+        const ratingDiff = toNumber(right?.rating) - toNumber(left?.rating);
+        if (ratingDiff !== 0) {
+          return ratingDiff;
+        }
+
+        return toNumber(right?.id) - toNumber(left?.id);
+      })
+      .slice(0, limit);
+
+    return res.json({ data: fallback });
+  } catch (err) {
+    console.error("HOME BESTSELLERS ERROR:", err);
+    return res.status(500).json({ message: "Server error", detail: err.message });
   }
 });
 

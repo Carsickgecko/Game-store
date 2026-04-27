@@ -1,108 +1,140 @@
-// client/src/store/auth.js
+import { clearCart, clearWishlist, cleanupLegacyStoreKeys } from "./storage.js";
 
-const TOKEN_KEY = "accessToken";
-const USER_KEY = "user";
+let accessToken = null;
+let currentUser = null;
 
 function emitAuthChanged() {
   window.dispatchEvent(new Event("auth:changed"));
-  // để Header / Wishlist / Cart refresh đúng theo user mới
   window.dispatchEvent(new Event("store:changed"));
 }
 
-/**
- * Lưu token + user sau khi login
- */
+function getApiRoot() {
+  return (import.meta.env.VITE_API_URL || "http://localhost:5001")
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/api\/v1$/i, "");
+}
+
 export function setAuth(token, user) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+  accessToken = token || null;
+  currentUser = user || null;
+  cleanupLegacyStoreKeys();
   emitAuthChanged();
 }
 
-/**
- * Alias để tương thích code cũ bạn đang dùng
- */
 export const saveAuth = setAuth;
 
-/**
- * Lấy user hiện tại (hoặc null)
- */
 export function getUser() {
-  const raw = localStorage.getItem(USER_KEY);
-  if (!raw) return null;
+  return currentUser;
+}
+
+export function isAuthenticated() {
+  return Boolean(currentUser);
+}
+
+export const isLoggedIn = isAuthenticated;
+
+export function getAccessToken() {
+  return accessToken;
+}
+
+export const getToken = getAccessToken;
+
+export async function bootstrapAuth() {
+  cleanupLegacyStoreKeys();
+
   try {
-    return JSON.parse(raw);
+    const response = await fetch(`${getApiRoot()}/api/v1/auth/me`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      accessToken = null;
+      currentUser = null;
+      emitAuthChanged();
+      return null;
+    }
+
+    const data = await response.json();
+    accessToken = null;
+    currentUser = data?.user || null;
+    emitAuthChanged();
+    return currentUser;
   } catch {
+    accessToken = null;
+    currentUser = null;
+    emitAuthChanged();
     return null;
   }
 }
 
-/**
- * Kiểm tra đã login hay chưa (dựa vào token)
- */
-export function isAuthenticated() {
-  return Boolean(localStorage.getItem(TOKEN_KEY));
-}
-
-// Alias tương thích code cũ (nếu file nào dùng isLoggedIn)
-export const isLoggedIn = isAuthenticated;
-
-/**
- * Lấy access token (cho axios interceptor)
- */
-export function getAccessToken() {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-// Alias tương thích code cũ (nếu file nào đang import getToken)
-export const getToken = getAccessToken;
-
-/**
- * Logout
- */
-export function logout() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+export async function logout() {
+  accessToken = null;
+  currentUser = null;
+  clearCart();
+  clearWishlist();
+  cleanupLegacyStoreKeys();
   emitAuthChanged();
-}
 
-/**
- * Update profile (DEMO: update local user)
- * - Không phá UI hiện tại của AccountSettings
- */
-export function updateProfile({ name, email }) {
-  const u = getUser();
-  if (!u) return { ok: false };
-
-  const next = { ...u, name, email };
-  localStorage.setItem(USER_KEY, JSON.stringify(next));
-  emitAuthChanged();
-  return { ok: true, user: next };
-}
-
-/**
- * Change password (DEMO local)
- * - Backend bạn có thể làm sau
- */
-export function changePassword({ currentPassword, newPassword }) {
-  // demo: chỉ validate tối thiểu
-  if (!currentPassword || !newPassword) {
-    return { ok: false, message: "Missing password fields." };
+  try {
+    const { apiLogout } = await import("../api/authHttp.js");
+    await apiLogout();
+  } catch {
+    // Ignore logout network failures after local state is cleared.
   }
-  return { ok: true };
 }
 
-/**
- * Kiểm tra có phải admin không
- * (RoleId = 2 là admin theo backend của bạn)
- */
+export async function updateProfile({ name, fullName, email, avatarUrl }) {
+  const { apiUpdateProfile } = await import("../api/authHttp.js");
+  const data = await apiUpdateProfile({
+    name,
+    fullName: fullName || name,
+    email,
+    avatarUrl,
+  });
+
+  const nextUser = {
+    ...(currentUser || {}),
+    ...(data?.user || {}),
+    name: data?.user?.fullName || data?.user?.name || fullName || name,
+    avatarUrl:
+      data?.user?.avatarUrl ??
+      avatarUrl ??
+      currentUser?.avatarUrl ??
+      null,
+  };
+
+  currentUser = nextUser;
+  emitAuthChanged();
+
+  return { ok: true, user: nextUser };
+}
+
+export async function changePassword({ currentPassword, newPassword }) {
+  const { apiChangePassword } = await import("../api/authHttp.js");
+  const data = await apiChangePassword({ currentPassword, newPassword });
+  return { ok: true, ...(data || {}) };
+}
+
+export async function updatePreferredLanguage(language) {
+  const { apiUpdateLanguage } = await import("../api/authHttp.js");
+  const data = await apiUpdateLanguage(language);
+
+  currentUser = {
+    ...(currentUser || {}),
+    ...(data?.user || {}),
+    preferredLanguage: data?.user?.preferredLanguage || language,
+  };
+
+  emitAuthChanged();
+  return currentUser;
+}
+
 export function isAdmin() {
   const u = getUser();
   return !!u && Number(u.roleId) === 2;
 }
 
-/**
- * Lấy roleId (nếu cần dùng UI)
- */
 export function getRoleId() {
   const u = getUser();
   return u ? Number(u.roleId) : null;

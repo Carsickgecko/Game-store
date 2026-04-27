@@ -1,108 +1,112 @@
-import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { loadWishlist, removeFromWishlist } from "../store/actions.js";
+import { isAuthenticated } from "../store/auth.js";
 import { getWishlistItems } from "../store/storage.js";
-import { addToCart, toggleWishlist } from "../store/actions.js";
-import { toImageUrl } from "../utils/image.js";
+import ProductCard from "../components/product/ProductCard.jsx";
+import AccountShell from "../components/account/AccountShell.jsx";
+import { useLanguage } from "../contexts/LanguageContext.jsx";
 
 export default function Wishlist() {
-  const [items, setItems] = useState([]);
+  const { t } = useLanguage();
+  const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  const hydrateWishlist = async () => {
+    setLoading(true);
+    setErr("");
+
+    try {
+      const list = await loadWishlist();
+      setGames(Array.isArray(list) ? list : []);
+    } catch (error) {
+      setErr(error?.response?.data?.message || t("wishlist.failedLoad"));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const update = () => setItems(getWishlistItems());
-    update();
+    const syncFromStore = () => {
+      setGames(getWishlistItems());
+      setLoading(false);
+    };
 
-    window.addEventListener("store:changed", update);
-    window.addEventListener("storage", update);
+    hydrateWishlist();
+
+    window.addEventListener("store:changed", syncFromStore);
+    window.addEventListener("storage", syncFromStore);
+    window.addEventListener("auth:changed", hydrateWishlist);
+
     return () => {
-      window.removeEventListener("store:changed", update);
-      window.removeEventListener("storage", update);
+      window.removeEventListener("store:changed", syncFromStore);
+      window.removeEventListener("storage", syncFromStore);
+      window.removeEventListener("auth:changed", hydrateWishlist);
     };
   }, []);
 
-  const onRemove = (p) => {
-    toggleWishlist(p); // action sẽ tự setWishlistItems + emit
+  const onRemove = async (gameId) => {
+    setErr("");
+
+    try {
+      const next = await removeFromWishlist(gameId);
+      setGames(Array.isArray(next) ? next : []);
+      window.dispatchEvent(new CustomEvent("wishlist:changed"));
+    } catch (error) {
+      setErr(error?.response?.data?.message || t("wishlist.removeFailed"));
+    }
   };
 
-  if (!items.length) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 py-10">
-        <h1 className="text-2xl font-bold">Wishlist</h1>
-        <p className="mt-2 text-black/60">No games saved yet.</p>
-        <Link to="/catalog" className="inline-block mt-4 underline">
-          Browse catalog
-        </Link>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Wishlist</h1>
-          <p className="text-sm text-black/60">Games you saved</p>
-        </div>
-        <Link to="/catalog" className="text-sm underline">
-          Browse more
+    <AccountShell
+      title={t("wishlist.title")}
+      description={
+        isAuthenticated()
+          ? t("wishlist.descriptionAuth")
+          : t("wishlist.descriptionGuest")
+      }
+      actions={
+        <Link
+          to="/catalog"
+          className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10"
+        >
+          {t("wishlist.backToCatalog")}
         </Link>
-      </div>
+      }
+      showTabs={isAuthenticated()}
+    >
+      {loading ? <div className="text-white/60">{t("common.loading")}</div> : null}
 
-      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {items.map((p) => (
-          <div
-            key={p.id}
-            className="rounded-2xl border bg-white overflow-hidden"
-          >
-            <Link to={`/product/${p.id}`} className="block relative">
-              <div className="aspect-[16/9] bg-black/5 overflow-hidden">
-                <img
-                  src={toImageUrl(p.image)}
-                  alt={p.name || "Game"}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  onError={(e) => {
-                    e.currentTarget.src = "/images/hero-bg.jpg";
-                  }}
-                />
-              </div>
-            </Link>
+      {err ? (
+        <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+          {err}
+        </div>
+      ) : null}
 
-            <div className="p-4">
-              <Link to={`/product/${p.id}`} className="block">
-                <div className="font-semibold line-clamp-1">{p.name}</div>
-                <div className="mt-1 text-xs text-black/60">
-                  {p.genre || "Unknown"} • {p.platform || "PC"}{" "}
-                  {p.rating ? `• ⭐ ${Number(p.rating).toFixed(1)}` : ""}
-                </div>
-              </Link>
+      {!loading && !err && games.length === 0 ? (
+        <div className="rounded-[28px] border border-white/8 bg-[#1d1d1d] px-6 py-10 text-white/60">
+          {t("wishlist.empty")}
+        </div>
+      ) : null}
 
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <div className="font-bold">
-                  ${Number(p.price || 0).toFixed(2)}
-                </div>
-              </div>
+      {!loading && !err && games.length > 0 ? (
+        <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
+          {games.map((game) => (
+            <div key={game.id} className="relative">
+              <ProductCard product={game} mode="store" />
 
-              <div className="mt-4 flex items-center gap-2">
-                <button
-                  type="button"
-                  className="flex-1 px-4 py-2 rounded-xl bg-black text-white font-semibold"
-                  onClick={() => addToCart(p, 1)}
-                >
-                  Add to cart
-                </button>
-
-                <button
-                  type="button"
-                  className="px-3 py-2 rounded-xl border text-sm hover:bg-black hover:text-white transition"
-                  onClick={() => onRemove(p)}
-                >
-                  Remove
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(game.id)}
+                className="mt-4 w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm font-medium text-white transition hover:border-white/18 hover:bg-white/10"
+              >
+                {t("wishlist.remove")}
+              </button>
             </div>
-          </div>
-        ))}
-      </div>
-    </div>
+          ))}
+        </div>
+      ) : null}
+    </AccountShell>
   );
 }

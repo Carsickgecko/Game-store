@@ -1,10 +1,10 @@
 // server/src/middleware/auth.js
 import jwt from "jsonwebtoken";
+import { getTokenFromRequest } from "../utils/authCookie.js";
 
 export function authMiddleware(req, res, next) {
   try {
-    const header = req.headers.authorization || "";
-    const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+    const token = getTokenFromRequest(req);
 
     if (!token) {
       return res.status(401).json({ message: "Missing token" });

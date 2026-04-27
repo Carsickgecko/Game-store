@@ -1,6 +1,27 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 html {
   scroll-behavior: smooth;
+  background: #170d45;
+}
+
+body {
+  margin: 0;
+  color: #f8fbff;
+  background-color: #170d45;
+  background-image:
+    linear-gradient(180deg, rgba(7, 5, 19, 0.84), rgba(10, 7, 26, 0.9)),
+    radial-gradient(circle at top left, rgba(63, 233, 255, 0.14), transparent 28%),
+    radial-gradient(circle at top right, rgba(255, 88, 220, 0.14), transparent 30%),
+    url("/images/site-bg-pattern.jpg");
+  background-size: cover, auto, auto, 620px auto;
+  background-position: center, top left, top right, center top;
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat;
+  background-attachment: fixed, scroll, scroll, fixed;
+}
+
+#root {
+  min-height: 100vh;
 }

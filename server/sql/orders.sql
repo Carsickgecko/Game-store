@@ -1,0 +1,28 @@
+IF OBJECT_ID(N'dbo.Orders', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.Orders (
+    OrderId INT IDENTITY(1,1) PRIMARY KEY,
+    UserId INT NOT NULL,
+    Subtotal DECIMAL(10,2) NOT NULL CONSTRAINT DF_Orders_Subtotal DEFAULT(0),
+    ServiceFee DECIMAL(10,2) NOT NULL CONSTRAINT DF_Orders_ServiceFee DEFAULT(0),
+    PaymentFee DECIMAL(10,2) NOT NULL CONSTRAINT DF_Orders_PaymentFee DEFAULT(0),
+    Total DECIMAL(10,2) NOT NULL CONSTRAINT DF_Orders_Total DEFAULT(0),
+    PaymentMethod NVARCHAR(50) NOT NULL CONSTRAINT DF_Orders_PaymentMethod DEFAULT(N'card'),
+    Status NVARCHAR(30) NOT NULL CONSTRAINT DF_Orders_Status DEFAULT(N'completed'),
+    CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_Orders_CreatedAt DEFAULT(SYSUTCDATETIME())
+  );
+END;
+
+IF OBJECT_ID(N'dbo.OrderItems', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.OrderItems (
+    OrderItemId INT IDENTITY(1,1) PRIMARY KEY,
+    OrderId INT NOT NULL,
+    GameId INT NOT NULL,
+    Price DECIMAL(10,2) NOT NULL,
+    Qty INT NOT NULL CONSTRAINT DF_OrderItems_Qty DEFAULT(1),
+    CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_OrderItems_CreatedAt DEFAULT(SYSUTCDATETIME()),
+    CONSTRAINT FK_OrderItems_Order FOREIGN KEY (OrderId) REFERENCES dbo.Orders(OrderId),
+    CONSTRAINT FK_OrderItems_Game FOREIGN KEY (GameId) REFERENCES dbo.Games(GameId)
+  );
+END;

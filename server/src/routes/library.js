@@ -1,12 +1,10 @@
-// server/src/routes/library.js
 import express from "express";
 import { getPool } from "../db.js";
 import authMiddleware from "../middleware/auth.js";
 
 const router = express.Router();
 
-// GET /api/v1/library/me
-router.get("/me", authMiddleware, async (req, res) => {
+async function getLibrary(req, res) {
   try {
     const userId = Number(req.user.id);
     const pool = await getPool();
@@ -33,16 +31,15 @@ router.get("/me", authMiddleware, async (req, res) => {
     console.error(err);
     res.status(500).json({ message: "Server error", detail: err.message });
   }
-});
+}
 
-// POST /api/v1/library/add
-router.post("/add", authMiddleware, async (req, res) => {
+async function addLibraryItems(req, res) {
   try {
     const userId = Number(req.user.id);
     const gameIdsRaw = req.body?.gameIds;
 
     const gameIds = Array.isArray(gameIdsRaw)
-      ? gameIdsRaw.map((x) => Number(x)).filter((x) => Number.isFinite(x))
+      ? gameIdsRaw.map((item) => Number(item)).filter(Number.isFinite)
       : [];
 
     if (gameIds.length === 0) {
@@ -53,18 +50,20 @@ router.post("/add", authMiddleware, async (req, res) => {
 
     const pool = await getPool();
 
-    // Insert kiểu "upsert" (tránh trùng)
-    // Nếu table có UNIQUE(UserId, GameId) càng tốt, không có vẫn chạy nhờ IF NOT EXISTS.
     for (const gid of gameIds) {
-      await pool.request().input("userId", userId).input("gameId", gid).query(`
-        IF NOT EXISTS (
-          SELECT 1 FROM dbo.UserLibrary WHERE UserId=@userId AND GameId=@gameId
-        )
-        BEGIN
-          INSERT INTO dbo.UserLibrary(UserId, GameId, AddedAt)
-          VALUES (@userId, @gameId, SYSUTCDATETIME())
-        END
-      `);
+      await pool
+        .request()
+        .input("userId", userId)
+        .input("gameId", gid)
+        .query(`
+          IF NOT EXISTS (
+            SELECT 1 FROM dbo.UserLibrary WHERE UserId=@userId AND GameId=@gameId
+          )
+          BEGIN
+            INSERT INTO dbo.UserLibrary(UserId, GameId, AddedAt)
+            VALUES (@userId, @gameId, SYSUTCDATETIME())
+          END
+        `);
     }
 
     res.json({ ok: true, added: gameIds.length });
@@ -72,6 +71,12 @@ router.post("/add", authMiddleware, async (req, res) => {
     console.error(err);
     res.status(500).json({ message: "Server error", detail: err.message });
   }
-});
+}
+
+router.get("/", authMiddleware, getLibrary);
+router.get("/me", authMiddleware, getLibrary);
+
+router.post("/", authMiddleware, addLibraryItems);
+router.post("/add", authMiddleware, addLibraryItems);
 
 export default router;

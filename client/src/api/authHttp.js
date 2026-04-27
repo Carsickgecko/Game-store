@@ -15,7 +15,12 @@ export async function apiLogin(payload) {
 }
 
 export async function apiMe() {
-  const res = await api.get("/api/v1/library/me");
+  const res = await api.get("/api/v1/auth/me");
+  return res.data;
+}
+
+export async function apiLogout() {
+  const res = await api.post("/api/v1/auth/logout");
   return res.data;
 }
 
@@ -26,5 +31,10 @@ export async function apiUpdateProfile(payload) {
 
 export async function apiChangePassword(payload) {
   const res = await api.put("/api/v1/users/change-password", payload);
+  return res.data;
+}
+
+export async function apiUpdateLanguage(language) {
+  const res = await api.put("/api/v1/users/language", { language });
   return res.data;
 }

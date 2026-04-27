@@ -1,13 +1,25 @@
-import { api } from "./http";
+import api from "./http.js";
+
+function normalizeList(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
 
 export async function fetchMyLibrary() {
   const res = await api.get("/library/me");
-  return res.data?.data ?? [];
+  return normalizeList(res.data);
 }
 
-// gameIds: array id hoặc 1 id
 export async function addToLibrary(gameIds) {
-  const payload = { gameIds: Array.isArray(gameIds) ? gameIds : [gameIds] };
-  const res = await api.post("/library/add", payload);
+  const normalizedIds = [
+    ...new Set(
+      (Array.isArray(gameIds) ? gameIds : [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id)),
+    ),
+  ];
+
+  const res = await api.post("/library/add", { gameIds: normalizedIds });
   return res.data;
 }

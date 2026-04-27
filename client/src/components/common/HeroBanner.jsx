@@ -1,7 +1,9 @@
 import { toImageUrl } from "../../utils/image.js";
 import { Link } from "react-router-dom";
+import { useLanguage } from "../../contexts/LanguageContext.jsx";
 
 export default function HeroBanner({ highlightGame }) {
+  const { t } = useLanguage();
   const bg = toImageUrl(highlightGame?.image);
 
   return (
@@ -21,7 +23,7 @@ export default function HeroBanner({ highlightGame }) {
         <div className="absolute inset-0 bg-black/40" />
 
         <div className="relative z-10 p-6">
-          <div className="text-white/80 text-sm">Today&apos;s highlight</div>
+          <div className="text-white/80 text-sm">{t("heroBanner.todayHighlight")}</div>
 
           <div className="mt-2 text-white text-xl font-semibold">
             {highlightGame?.name || "—"}
@@ -45,14 +47,14 @@ export default function HeroBanner({ highlightGame }) {
                 to={`/product/${highlightGame.id}`}
                 className="inline-flex px-5 py-2 rounded-2xl bg-white text-black"
               >
-                View game
+                {t("heroBanner.viewGame")}
               </Link>
             ) : (
               <button
                 className="px-5 py-2 rounded-2xl bg-white text-black"
                 disabled
               >
-                View game
+                {t("heroBanner.viewGame")}
               </button>
             )}
           </div>

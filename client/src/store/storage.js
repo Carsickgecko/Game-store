@@ -1,67 +1,69 @@
-// client/src/store/storage.js
-import { getUser } from "./auth.js";
+let cartItems = [];
+let wishlistItems = [];
 
 function emitStoreChange() {
   window.dispatchEvent(new CustomEvent("store:changed"));
 }
 
-// tạo suffix theo user để tách data theo tài khoản
-function getUserKeySuffix() {
-  const u = getUser();
-  // ưu tiên id, nếu không có thì dùng email/username
-  const raw = u?.id ?? u?.userId ?? u?.email ?? u?.username;
-  return raw ? String(raw) : "guest";
-}
-
-// keys theo user
-function cartKey() {
-  return `cart_items:${getUserKeySuffix()}`;
-}
-function wishlistKey() {
-  return `wishlist_items:${getUserKeySuffix()}`;
-}
-
 export function getCartItems() {
-  try {
-    return JSON.parse(localStorage.getItem(cartKey())) || [];
-  } catch {
-    return [];
-  }
+  return Array.isArray(cartItems) ? cartItems : [];
 }
 
 export function setCartItems(items) {
-  localStorage.setItem(cartKey(), JSON.stringify(items || []));
+  cartItems = Array.isArray(items) ? [...items] : [];
   emitStoreChange();
 }
 
 export function clearCart() {
-  localStorage.removeItem(cartKey());
+  cartItems = [];
   emitStoreChange();
 }
 
 export function getWishlistItems() {
-  try {
-    return JSON.parse(localStorage.getItem(wishlistKey())) || [];
-  } catch {
-    return [];
-  }
+  return Array.isArray(wishlistItems) ? wishlistItems : [];
 }
 
 export function setWishlistItems(items) {
-  localStorage.setItem(wishlistKey(), JSON.stringify(items || []));
+  wishlistItems = Array.isArray(items) ? [...items] : [];
   emitStoreChange();
 }
 
 export function clearWishlist() {
-  localStorage.removeItem(wishlistKey());
+  wishlistItems = [];
   emitStoreChange();
 }
 
-/**
- * (Tuỳ chọn) Xoá dữ liệu kiểu cũ (không theo user) để tránh UI đọc nhầm file cũ ở nơi khác
- * Gọi 1 lần khi app start nếu muốn.
- */
 export function cleanupLegacyStoreKeys() {
-  localStorage.removeItem("cart_items");
-  localStorage.removeItem("wishlist_items");
+  try {
+    const storage = window.localStorage || {};
+    const indexedKeys = [];
+
+    if (typeof storage.length === "number" && typeof storage.key === "function") {
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        if (key) {
+          indexedKeys.push(key);
+        }
+      }
+    }
+
+    const keys = [...new Set([...Object.keys(storage), ...indexedKeys])];
+
+    keys.forEach((key) => {
+      if (
+        key === "cart_items" ||
+        key === "wishlist_items" ||
+        key === "demo_reviews" ||
+        key === "accessToken" ||
+        key === "user" ||
+        key === "neonplay_language" ||
+        key.startsWith("cart_items:") ||
+        key.startsWith("wishlist_items:")
+      ) {
+        storage.removeItem(key);
+      }
+    });
+  } catch {
+    // Ignore cleanup failures.
+  }
 }

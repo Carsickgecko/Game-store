@@ -1,0 +1,81 @@
+name: Deploy NeonPlay to Azure
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "20.x"
+  API_APP_NAME: neonplay-api-444728
+  WEB_APP_NAME: neonplay-web-444728
+  VITE_API_URL: https://neonplay-api-444728.azurewebsites.net
+
+jobs:
+  deploy-backend:
+    name: Deploy backend API
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: server
+        run: npm ci --omit=dev
+
+      - name: Package backend
+        shell: pwsh
+        working-directory: server
+        run: Compress-Archive -Path src,node_modules,package.json,package-lock.json,web.config,bootstrap.cjs -DestinationPath ..\backend.zip -Force
+
+      - name: Deploy backend to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.API_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
+          package: backend.zip
+
+  deploy-frontend:
+    name: Deploy frontend web
+    runs-on: windows-latest
+    needs: deploy-backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: client
+        run: npm run build
+
+      - name: Package frontend
+        shell: pwsh
+        run: Compress-Archive -Path client\dist\* -DestinationPath frontend.zip -Force
+
+      - name: Deploy frontend to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.WEB_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEB_PUBLISH_PROFILE }}
+          package: frontend.zip

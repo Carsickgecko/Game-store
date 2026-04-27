@@ -59,6 +59,29 @@ router.get("/:id", async (req, res) => {
     const game = result.recordset?.[0];
     if (!game) return res.status(404).json({ message: "Game not found" });
 
+    const screenshotsResult = await pool.request().input("id", id).query(`
+      IF OBJECT_ID(N'dbo.GameScreenshots', N'U') IS NOT NULL
+      BEGIN
+        SELECT
+          ImageUrl AS imageUrl,
+          SortOrder AS sortOrder
+        FROM dbo.GameScreenshots
+        WHERE GameId = @id
+        ORDER BY SortOrder ASC, ScreenshotId ASC
+      END
+      ELSE
+      BEGIN
+        SELECT
+          CAST(NULL AS NVARCHAR(500)) AS imageUrl,
+          CAST(NULL AS INT) AS sortOrder
+        WHERE 1 = 0
+      END
+    `);
+
+    game.screenshots = (screenshotsResult.recordset || [])
+      .map((item) => item?.imageUrl)
+      .filter(Boolean);
+
     res.json({ data: game });
   } catch (err) {
     console.error("GAME DETAIL ERROR:", err);

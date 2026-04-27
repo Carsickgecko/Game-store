@@ -11,6 +11,8 @@ import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import Account from "./pages/Account.jsx";
 import AccountSettings from "./pages/AccountSettings.jsx";
+import Achievements from "./pages/Achievements.jsx";
+import Orders from "./pages/Orders.jsx";
 import ThankYou from "./pages/ThankYou.jsx";
 import Library from "./pages/Library.jsx";
 import Admin from "./pages/Admin.jsx";
@@ -27,6 +29,8 @@ export default function App() {
         <Route path="/account" element={<Account />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/library" element={<Library />} />
+        <Route path="/achievements" element={<Achievements />} />
+        <Route path="/orders" element={<Orders />} />
         <Route path="/account/settings" element={<AccountSettings />} />
         <Route path="/thank-you" element={<ThankYou />} />
       </Route>
