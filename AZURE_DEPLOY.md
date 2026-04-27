@@ -126,11 +126,27 @@ AZURE_API_PUBLISH_PROFILE
 AZURE_WEB_PUBLISH_PROFILE
 ```
 
+GitHub Actions will fail with `No credentials found` when either secret is missing or empty.
+
 Get each publish profile from Azure Portal:
 
 1. Open the App Service.
 2. Click `Get publish profile`.
-3. Copy the downloaded XML content into the matching GitHub secret.
+3. Open the downloaded `.PublishSettings` file in VS Code.
+4. Copy the full XML content into the matching GitHub secret.
+
+Secret setup page:
+
+```text
+https://github.com/Carsickgecko/Game-store/settings/secrets/actions
+```
+
+Use these exact mappings:
+
+```text
+neonplay-api-444728  -> AZURE_API_PUBLISH_PROFILE
+neonplay-web-444728  -> AZURE_WEB_PUBLISH_PROFILE
+```
 
 Manual one-command deployment is also available:
 

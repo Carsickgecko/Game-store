@@ -38,6 +38,15 @@ jobs:
         working-directory: server
         run: Compress-Archive -Path src,node_modules,package.json,package-lock.json,web.config,bootstrap.cjs -DestinationPath ..\backend.zip -Force
 
+      - name: Verify backend publish profile secret
+        shell: pwsh
+        env:
+          AZURE_API_PUBLISH_PROFILE: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:AZURE_API_PUBLISH_PROFILE)) {
+            throw "Missing GitHub secret AZURE_API_PUBLISH_PROFILE. Add the publish profile XML from Azure App Service neonplay-api-444728."
+          }
+
       - name: Deploy backend to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
@@ -72,6 +81,15 @@ jobs:
       - name: Package frontend
         shell: pwsh
         run: Compress-Archive -Path client\dist\* -DestinationPath frontend.zip -Force
+
+      - name: Verify frontend publish profile secret
+        shell: pwsh
+        env:
+          AZURE_WEB_PUBLISH_PROFILE: ${{ secrets.AZURE_WEB_PUBLISH_PROFILE }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:AZURE_WEB_PUBLISH_PROFILE)) {
+            throw "Missing GitHub secret AZURE_WEB_PUBLISH_PROFILE. Add the publish profile XML from Azure App Service neonplay-web-444728."
+          }
 
       - name: Deploy frontend to Azure App Service
         uses: azure/webapps-deploy@v3
