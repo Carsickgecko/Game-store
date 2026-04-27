@@ -1,6 +1,18 @@
+@font-face {
+  font-family: "Skyscapers";
+  src: url("./assets/fonts/Skyscapers.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  font-family: "Skyscapers", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
 
 html {
   scroll-behavior: smooth;
@@ -9,6 +21,7 @@ html {
 
 body {
   margin: 0;
+  font-family: inherit;
   color: #f8fbff;
   background-color: #170d45;
   background-image:
@@ -20,6 +33,13 @@ body {
   background-position: center, top left, top right, center top;
   background-repeat: no-repeat, no-repeat, no-repeat, repeat;
   background-attachment: fixed, scroll, scroll, fixed;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
 }
 
 #root {
