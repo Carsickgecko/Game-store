@@ -6,6 +6,142 @@ import { importGamesFromRawg } from "../services/gameImport.js";
 
 const router = express.Router();
 
+router.get("/stats", authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const pool = await getPool();
+
+    const summary = await pool.request().query(`
+      SELECT
+        (SELECT COUNT(*) FROM dbo.Games) AS storeGames,
+        (SELECT COUNT(*) FROM dbo.Games WHERE IsActive = 1) AS activeGames,
+        (SELECT COUNT(*) FROM dbo.Users) AS users,
+        (SELECT COUNT(*) FROM dbo.Users WHERE IsActive = 1) AS activeUsers,
+        (SELECT COUNT(*) FROM dbo.Orders WHERE Status = N'completed') AS completedOrders,
+        (SELECT COALESCE(SUM(Total), 0) FROM dbo.Orders WHERE Status = N'completed') AS totalRevenue,
+        (
+          SELECT COALESCE(SUM(oi.Qty), 0)
+          FROM dbo.OrderItems oi
+          INNER JOIN dbo.Orders o ON o.OrderId = oi.OrderId
+          WHERE o.Status = N'completed'
+        ) AS gamesSold,
+        (
+          SELECT COALESCE(AVG(CAST(Total AS DECIMAL(18, 2))), 0)
+          FROM dbo.Orders
+          WHERE Status = N'completed'
+        ) AS averageOrderValue,
+        (
+          SELECT COUNT(*)
+          FROM dbo.Orders
+          WHERE Status = N'completed'
+            AND CAST(CreatedAt AS DATE) = CAST(SYSUTCDATETIME() AS DATE)
+        ) AS todayOrders,
+        (
+          SELECT COALESCE(SUM(Total), 0)
+          FROM dbo.Orders
+          WHERE Status = N'completed'
+            AND CAST(CreatedAt AS DATE) = CAST(SYSUTCDATETIME() AS DATE)
+        ) AS todayRevenue,
+        (
+          SELECT COALESCE(SUM(oi.Qty), 0)
+          FROM dbo.OrderItems oi
+          INNER JOIN dbo.Orders o ON o.OrderId = oi.OrderId
+          WHERE o.Status = N'completed'
+            AND CAST(o.CreatedAt AS DATE) = CAST(SYSUTCDATETIME() AS DATE)
+        ) AS todayGamesSold
+    `);
+
+    const daily = await pool.request().query(`
+      WITH days AS (
+        SELECT CAST(DATEADD(DAY, -6, CAST(SYSUTCDATETIME() AS DATE)) AS DATE) AS SalesDate
+        UNION ALL
+        SELECT DATEADD(DAY, 1, SalesDate)
+        FROM days
+        WHERE SalesDate < CAST(SYSUTCDATETIME() AS DATE)
+      ),
+      order_totals AS (
+        SELECT
+          CAST(CreatedAt AS DATE) AS SalesDate,
+          COUNT(*) AS orders,
+          COALESCE(SUM(Total), 0) AS revenue
+        FROM dbo.Orders
+        WHERE Status = N'completed'
+          AND CreatedAt >= DATEADD(DAY, -6, CAST(SYSUTCDATETIME() AS DATE))
+        GROUP BY CAST(CreatedAt AS DATE)
+      ),
+      item_totals AS (
+        SELECT
+          CAST(o.CreatedAt AS DATE) AS SalesDate,
+          COALESCE(SUM(oi.Qty), 0) AS gamesSold
+        FROM dbo.OrderItems oi
+        INNER JOIN dbo.Orders o ON o.OrderId = oi.OrderId
+        WHERE o.Status = N'completed'
+          AND o.CreatedAt >= DATEADD(DAY, -6, CAST(SYSUTCDATETIME() AS DATE))
+        GROUP BY CAST(o.CreatedAt AS DATE)
+      )
+      SELECT
+        CONVERT(char(10), d.SalesDate, 23) AS date,
+        COALESCE(ot.orders, 0) AS orders,
+        COALESCE(ot.revenue, 0) AS revenue,
+        COALESCE(it.gamesSold, 0) AS gamesSold
+      FROM days d
+      LEFT JOIN order_totals ot ON ot.SalesDate = d.SalesDate
+      LEFT JOIN item_totals it ON it.SalesDate = d.SalesDate
+      ORDER BY d.SalesDate
+      OPTION (MAXRECURSION 7)
+    `);
+
+    const topGames = await pool.request().query(`
+      SELECT TOP 5
+        g.GameId AS id,
+        g.Name AS name,
+        COALESCE(SUM(oi.Qty), 0) AS sold,
+        COALESCE(SUM(oi.Price * oi.Qty), 0) AS revenue
+      FROM dbo.OrderItems oi
+      INNER JOIN dbo.Orders o ON o.OrderId = oi.OrderId
+      INNER JOIN dbo.Games g ON g.GameId = oi.GameId
+      WHERE o.Status = N'completed'
+      GROUP BY g.GameId, g.Name
+      ORDER BY sold DESC, revenue DESC, g.Name ASC
+    `);
+
+    const row = summary.recordset?.[0] || {};
+
+    return res.json({
+      data: {
+        summary: {
+          storeGames: Number(row.storeGames || 0),
+          activeGames: Number(row.activeGames || 0),
+          users: Number(row.users || 0),
+          activeUsers: Number(row.activeUsers || 0),
+          completedOrders: Number(row.completedOrders || 0),
+          totalRevenue: Number(row.totalRevenue || 0),
+          gamesSold: Number(row.gamesSold || 0),
+          averageOrderValue: Number(row.averageOrderValue || 0),
+          todayOrders: Number(row.todayOrders || 0),
+          todayRevenue: Number(row.todayRevenue || 0),
+          todayGamesSold: Number(row.todayGamesSold || 0),
+        },
+        daily: (daily.recordset || []).map((item) => ({
+          date: item.date,
+          orders: Number(item.orders || 0),
+          revenue: Number(item.revenue || 0),
+          gamesSold: Number(item.gamesSold || 0),
+        })),
+        topGames: (topGames.recordset || []).map((item) => ({
+          id: Number(item.id),
+          name: item.name,
+          sold: Number(item.sold || 0),
+          revenue: Number(item.revenue || 0),
+        })),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    console.error("ADMIN STATS ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
 router.post("/import-games", authMiddleware, requireAdmin, async (req, res) => {
   try {
     const page = Number(req.query.page || 1);

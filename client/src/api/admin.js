@@ -44,6 +44,11 @@ export async function adminFetchUsers() {
   return res.data?.data || [];
 }
 
+export async function adminFetchStats() {
+  const res = await api.get("/api/v1/admin/stats");
+  return res.data?.data || null;
+}
+
 export async function adminDisableUser(userId) {
   const res = await api.patch(`/api/v1/admin/users/${userId}/disable`);
   return res.data?.user;
