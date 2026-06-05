@@ -11,7 +11,8 @@ artifacts/
 *.log
 
 uploads/
-server/uploads/
+!server/uploads/
+!server/uploads/**
 
 .DS_Store
 Thumbs.db
