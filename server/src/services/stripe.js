@@ -25,6 +25,21 @@ export function getStripeWebhookSecret() {
   return String(process.env.STRIPE_WEBHOOK_SECRET || "").trim();
 }
 
+export function getStripeSuccessUrl(orderId) {
+  return `${getCheckoutBaseUrl()}/thank-you?session_id={CHECKOUT_SESSION_ID}&order_id=${encodeURIComponent(orderId)}`;
+}
+
+export function getStripeCancelUrl(orderId) {
+  const url = new URL(`${getCheckoutBaseUrl()}/checkout`);
+  url.searchParams.set("canceled", "1");
+
+  if (orderId) {
+    url.searchParams.set("order_id", String(orderId));
+  }
+
+  return url.toString();
+}
+
 export function toStripeAmount(value) {
   return Math.max(0, Math.round(Number(value || 0) * 100));
 }

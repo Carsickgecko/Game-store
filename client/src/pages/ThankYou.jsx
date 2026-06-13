@@ -1,11 +1,58 @@
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useLanguage } from "../contexts/LanguageContext.jsx";
 import CheckoutStepper from "../components/common/CheckoutStepper.jsx";
+import { confirmCheckoutSession } from "../api/orders.js";
+import { loadCart } from "../store/actions.js";
 
 export default function ThankYou() {
   const { t } = useLanguage();
   const location = useLocation();
-  const orderId = location.state?.orderId || null;
+  const [searchParams] = useSearchParams();
+  const sessionId = searchParams.get("session_id");
+  const urlOrderId = searchParams.get("order_id");
+  const [orderId, setOrderId] = useState(location.state?.orderId || urlOrderId || null);
+  const [confirming, setConfirming] = useState(Boolean(sessionId));
+  const [confirmError, setConfirmError] = useState("");
+
+  useEffect(() => {
+    if (!sessionId) {
+      return undefined;
+    }
+
+    let active = true;
+
+    const confirmPayment = async () => {
+      try {
+        setConfirming(true);
+        setConfirmError("");
+        const result = await confirmCheckoutSession(sessionId);
+
+        if (!active) return;
+
+        setOrderId(result?.orderId || urlOrderId || null);
+        await loadCart();
+      } catch (error) {
+        if (!active) return;
+
+        setConfirmError(
+          error?.response?.data?.message ||
+            error?.message ||
+            t("thankYou.confirmFailed"),
+        );
+      } finally {
+        if (active) {
+          setConfirming(false);
+        }
+      }
+    };
+
+    confirmPayment();
+
+    return () => {
+      active = false;
+    };
+  }, [sessionId, t, urlOrderId]);
 
   return (
     <div className="min-h-screen bg-transparent text-white">
@@ -32,6 +79,16 @@ export default function ThankYou() {
           </h1>
 
           <p className="mt-6 text-lg text-white/80">{t("thankYou.success")}</p>
+          {confirming ? (
+            <p className="mt-3 text-sm leading-relaxed text-cyan-100/75">
+              {t("thankYou.confirming")}
+            </p>
+          ) : null}
+          {confirmError ? (
+            <div className="mx-auto mt-5 max-w-2xl rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+              {confirmError}
+            </div>
+          ) : null}
           <p className="mt-3 text-sm leading-relaxed text-white/50">
             {t("thankYou.subtitle")}
           </p>

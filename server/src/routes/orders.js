@@ -1,6 +1,13 @@
 import express from "express";
 import { getPool } from "../db.js";
 import authMiddleware from "../middleware/auth.js";
+import {
+  getStripe,
+  getStripeCancelUrl,
+  getStripeCurrency,
+  getStripeSuccessUrl,
+  toStripeAmount,
+} from "../services/stripe.js";
 
 const router = express.Router();
 
@@ -27,6 +34,84 @@ function ensureRequiredContact(payload) {
     contact.zip;
 
   return { valid: Boolean(valid), contact };
+}
+
+function getPublicApiBaseUrl(req) {
+  const configured = String(
+    process.env.PUBLIC_API_BASE_URL ||
+      process.env.API_BASE_URL ||
+      process.env.BACKEND_URL ||
+      "",
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+  if (configured) {
+    return configured;
+  }
+
+  const proto = String(req.headers["x-forwarded-proto"] || req.protocol || "http")
+    .split(",")[0]
+    .trim();
+  return `${proto}://${req.get("host")}`;
+}
+
+function toAbsoluteImageUrl(imageUrl, req) {
+  const raw = toSafeText(imageUrl, 1000);
+
+  if (!raw) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
+  if (raw.startsWith("/")) {
+    return `${getPublicApiBaseUrl(req)}${raw}`;
+  }
+
+  return null;
+}
+
+function toStripeLineItems(items, req, currency) {
+  return items.map((item) => {
+    const imageUrl = toAbsoluteImageUrl(item.imageUrl, req);
+
+    return {
+      quantity: item.qty,
+      price_data: {
+        currency,
+        unit_amount: toStripeAmount(item.price),
+        product_data: {
+          name: item.name,
+          ...(imageUrl ? { images: [imageUrl] } : {}),
+          metadata: {
+            gameId: String(item.gameId),
+          },
+        },
+      },
+    };
+  });
+}
+
+function toOptionalFeeLineItem(label, amount, currency) {
+  const unitAmount = toStripeAmount(amount);
+
+  if (unitAmount <= 0) {
+    return null;
+  }
+
+  return {
+    quantity: 1,
+    price_data: {
+      currency,
+      unit_amount: unitAmount,
+      product_data: {
+        name: label,
+      },
+    },
+  };
 }
 
 export async function ensureOrdersSchema(pool) {
@@ -245,6 +330,20 @@ async function createPendingOrder(pool, payload) {
     await tx.rollback();
     throw error;
   }
+}
+
+export async function updateOrderProviderSession(pool, orderId, session) {
+  await pool
+    .request()
+    .input("orderId", orderId)
+    .input("providerSessionId", String(session.id || ""))
+    .input("paymentIntentId", String(session.payment_intent || "")).query(`
+      UPDATE dbo.Orders
+      SET
+        ProviderSessionId = @providerSessionId,
+        PaymentIntentId = NULLIF(@paymentIntentId, N'')
+      WHERE OrderId = @orderId
+    `);
 }
 
 export async function markOrderStatus(pool, orderId, status) {
@@ -504,20 +603,170 @@ router.get("/my", authMiddleware, async (req, res) => {
 });
 
 router.post("/checkout-session", authMiddleware, async (req, res) => {
-  return res.status(409).json({
-    message:
-      "Stripe checkout is currently disabled. Demo checkout is active through /api/v1/orders.",
-  });
+  let pendingOrderId = null;
+
+  try {
+    const userId = Number(req.user?.id);
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { valid, contact } = ensureRequiredContact(req.body);
+    if (!valid) {
+      return res
+        .status(400)
+        .json({ message: "Missing contact or billing information." });
+    }
+
+    const serviceFee = Math.max(0, Number(req.body?.serviceFee || 0));
+    const paymentFee = Math.max(0, Number(req.body?.paymentFee || 0));
+    const currency = getStripeCurrency();
+
+    const pool = await getPool();
+    await ensureOrdersSchema(pool);
+
+    const { items, subtotal } = await getNormalizedCheckoutItems(
+      pool,
+      req.body?.items,
+    );
+
+    const total = subtotal + serviceFee + paymentFee;
+    if (toStripeAmount(total) <= 0) {
+      return res.status(400).json({ message: "Order total must be greater than 0." });
+    }
+
+    const orderId = await createPendingOrder(pool, {
+      userId,
+      items,
+      subtotal,
+      serviceFee,
+      paymentFee,
+      total,
+      paymentMethod: "stripe_checkout",
+      paymentProvider: "stripe",
+      status: "pending_payment",
+      currency,
+      contact,
+    });
+    pendingOrderId = orderId;
+
+    const feeLineItems = [
+      toOptionalFeeLineItem("Service fee", serviceFee, currency),
+      toOptionalFeeLineItem("Payment fee", paymentFee, currency),
+    ].filter(Boolean);
+
+    const stripe = getStripe();
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer_email: contact.email,
+      line_items: [...toStripeLineItems(items, req, currency), ...feeLineItems],
+      success_url: getStripeSuccessUrl(orderId),
+      cancel_url: getStripeCancelUrl(orderId),
+      metadata: {
+        orderId: String(orderId),
+        userId: String(userId),
+      },
+      payment_intent_data: {
+        metadata: {
+          orderId: String(orderId),
+          userId: String(userId),
+        },
+      },
+    });
+
+    await updateOrderProviderSession(pool, orderId, session);
+
+    return res.status(201).json({
+      ok: true,
+      paymentMode: "stripe",
+      orderId,
+      sessionId: session.id,
+      url: session.url,
+    });
+  } catch (err) {
+    if (pendingOrderId) {
+      try {
+        const pool = await getPool();
+        await markOrderStatus(pool, pendingOrderId, "payment_error");
+      } catch (statusError) {
+        console.error("STRIPE ORDER STATUS ERROR:", statusError);
+      }
+    }
+
+    if (String(err?.message) === "STRIPE_NOT_CONFIGURED") {
+      return res.status(503).json({
+        message:
+          "Stripe is not configured. Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET on the server.",
+      });
+    }
+
+    if (String(err?.message) === "EMPTY_CART") {
+      return res.status(400).json({ message: "Cart is empty." });
+    }
+
+    if (String(err?.message) === "INVALID_ITEMS") {
+      return res.status(400).json({ message: "Invalid items payload." });
+    }
+
+    if (String(err?.message) === "GAME_NOT_FOUND") {
+      return res.status(400).json({ message: "Some games no longer exist." });
+    }
+
+    console.error("STRIPE CHECKOUT SESSION ERROR:", err);
+    return res.status(500).json({ message: "Server error", detail: err.message });
+  }
 });
 
 router.get(
   "/checkout-session/:sessionId/confirm",
   authMiddleware,
   async (req, res) => {
-    return res.status(409).json({
-      message:
-        "Stripe payment confirmation is currently disabled. Demo checkout completes immediately.",
-    });
+    try {
+      const userId = Number(req.user?.id);
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const sessionId = toSafeText(req.params.sessionId, 255);
+      if (!sessionId) {
+        return res.status(400).json({ message: "Missing Stripe session id." });
+      }
+
+      const pool = await getPool();
+      await ensureOrdersSchema(pool);
+
+      const order = await findOrderByProviderSessionId(pool, sessionId);
+      if (!order || Number(order.userId) !== userId) {
+        return res.status(404).json({ message: "Order not found." });
+      }
+
+      const stripe = getStripe();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const paymentStatus = String(session.payment_status || "").toLowerCase();
+
+      if (
+        paymentStatus === "paid" &&
+        String(order.status || "").toLowerCase() !== "completed"
+      ) {
+        await finalizePaidOrder(pool, Number(order.orderId), userId, session);
+      }
+
+      return res.json({
+        ok: true,
+        orderId: Number(order.orderId),
+        status: paymentStatus === "paid" ? "completed" : order.status,
+        paymentStatus,
+      });
+    } catch (err) {
+      if (String(err?.message) === "STRIPE_NOT_CONFIGURED") {
+        return res
+          .status(503)
+          .json({ message: "Stripe is not configured on the server." });
+      }
+
+      console.error("STRIPE CONFIRM SESSION ERROR:", err);
+      return res.status(500).json({ message: "Server error", detail: err.message });
+    }
   },
 );
 

@@ -211,6 +211,8 @@ export const en = {
     invalidCvv: "CVV is invalid.",
     fillContact: "Please fill in contact and address information.",
     failedSaveLibrary: "Failed to complete your order.",
+    paymentCanceled:
+      "Your payment was canceled. You can review your details and try again.",
     contactAddress: "Contact & Address",
     email: "Email",
     fullName: "Full name",
@@ -225,6 +227,13 @@ export const en = {
     zipPlaceholder: "00-000",
     paymentMethods: "Payment methods",
     cardDetails: "Card details",
+    secureProvider: "Secure payment provider",
+    secureProviderLead:
+      "You will be redirected to Stripe Checkout to complete a real payment securely. Card details are entered on Stripe's hosted payment page, not inside this app.",
+    payWithStripe: "Continue to Stripe",
+    redirecting: "Redirecting to Stripe...",
+    realPaymentNote:
+      "Your order is completed only after Stripe verifies the payment successfully.",
     cardNumber: "Card number",
     cardNumberPlaceholder: "1234 5678 9012 3456",
     cardHolder: "Card holder",
@@ -460,6 +469,9 @@ export const en = {
   thankYou: {
     title: "Thank You!",
     success: "Your order has been successfully placed.",
+    confirming: "We are confirming your Stripe payment...",
+    confirmFailed:
+      "Payment could not be confirmed right now. If your card was charged, open My orders or try confirming again from checkout.",
     subtitle:
       "Our team will review your submission and get back to you shortly. In the meantime, feel free to explore our store or contact us if you have any further questions.",
     backHome: "Back to Home Page",

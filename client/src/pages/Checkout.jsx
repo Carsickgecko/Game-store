@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FaApple, FaCreditCard, FaPaypal, FaQrcode } from "react-icons/fa";
 import { IoCheckmark } from "react-icons/io5";
 import { getCartItems } from "../store/storage.js";
 import { isAuthenticated } from "../store/auth.js";
-import { createOrder } from "../api/orders.js";
+import { createCheckoutSession, createOrder } from "../api/orders.js";
 import { loadCart } from "../store/actions.js";
 import { useLanguage } from "../contexts/LanguageContext.jsx";
 import { toImageUrl } from "../utils/image.js";
@@ -109,6 +109,7 @@ function PaymentMethodMark({ value }) {
 export default function Checkout() {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({
@@ -171,6 +172,12 @@ export default function Checkout() {
     };
   }, [navigate, t]);
 
+  useEffect(() => {
+    if (searchParams.get("canceled") === "1") {
+      setErr(t("checkout.paymentCanceled"));
+    }
+  }, [searchParams, t]);
+
   const subtotal = useMemo(
     () =>
       items.reduce(
@@ -213,12 +220,35 @@ export default function Checkout() {
     try {
       setSubmitting(true);
 
+      const checkoutItems = items.map((item) => ({
+        gameId: Number(item.id),
+        qty: Number(item.qty || 1),
+      }));
+
+      if (paymentMethod === "card") {
+        const result = await createCheckoutSession({
+          items: checkoutItems,
+          serviceFee,
+          paymentFee,
+          email: form.email,
+          name: form.name,
+          country: form.country,
+          city: form.city,
+          address: form.address,
+          zip: form.zip,
+        });
+
+        if (!result?.url) {
+          throw new Error(t("checkout.failedSaveLibrary"));
+        }
+
+        window.location.assign(result.url);
+        return;
+      }
+
       const result = await createOrder({
         paymentMethod,
-        items: items.map((item) => ({
-          gameId: Number(item.id),
-          qty: Number(item.qty || 1),
-        })),
+        items: checkoutItems,
         serviceFee,
         paymentFee,
         email: form.email,
@@ -453,30 +483,34 @@ export default function Checkout() {
                               {t(`checkout.${method.labelKey}`)}
                             </div>
                             <div className="mt-1 text-xs text-white/45">
-                              {active ? t("checkout.demoOnly") : t("common.open")}
+                              {active && method.value === "card"
+                                ? t("checkout.secureProvider")
+                                : active
+                                  ? t("checkout.demoOnly")
+                                  : t("common.open")}
                             </div>
                           </div>
                         </div>
-                      <div
-                        className={`flex h-6 w-6 items-center justify-center rounded-full border ${
-                          active
-                            ? "border-red-300 bg-red-400 text-white"
-                            : "border-white/15 text-transparent"
-                        }`}
-                      >
-                        <IoCheckmark className="text-sm" />
-                      </div>
-                    </button>
+                        <div
+                          className={`flex h-6 w-6 items-center justify-center rounded-full border ${
+                            active
+                              ? "border-red-300 bg-red-400 text-white"
+                              : "border-white/15 text-transparent"
+                          }`}
+                        >
+                          <IoCheckmark className="text-sm" />
+                        </div>
+                      </button>
 
                       {showCardDetails ? (
                         <div className="mt-3 rounded-[24px] border border-cyan-300/18 bg-cyan-300/8 p-5">
                           <div className="flex items-center justify-between gap-4">
                             <div>
                               <div className="text-xl font-semibold text-white">
-                                {t("checkout.cardDetails")}
+                                {t("checkout.secureProvider")}
                               </div>
                               <p className="mt-3 text-sm leading-7 text-white/66">
-                                {t("checkout.demoOnly")}
+                                {t("checkout.secureProviderLead")}
                               </p>
                             </div>
                             <div className="hidden items-center gap-2 sm:flex">
@@ -491,18 +525,18 @@ export default function Checkout() {
 
                           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                             <div className="rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white/72">
-                              {t("checkout.cardNumber")}
+                              Stripe Checkout
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white/72">
-                              {t("checkout.expiry")}
+                              Visa / Mastercard
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white/72">
-                              {t("checkout.cvv")}
+                              3D Secure
                             </div>
                           </div>
 
                           <p className="mt-2 text-xs leading-6 text-white/45">
-                            {t("checkout.demoCheckout")}
+                            {t("checkout.realPaymentNote")}
                           </p>
                         </div>
                       ) : null}
@@ -517,7 +551,13 @@ export default function Checkout() {
               disabled={submitting}
               className="mt-8 inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-[linear-gradient(135deg,#dc2626,#ef4444)] px-5 py-4 text-base font-semibold text-white shadow-[0_22px_40px_-24px_rgba(220,38,38,0.95)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {submitting ? t("checkout.processing") : t("checkout.placeOrder")}
+              {submitting
+                ? paymentMethod === "card"
+                  ? t("checkout.redirecting")
+                  : t("checkout.processing")
+                : paymentMethod === "card"
+                  ? t("checkout.payWithStripe")
+                  : t("checkout.placeOrder")}
             </button>
           </form>
 

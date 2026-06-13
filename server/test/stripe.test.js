@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   getCheckoutBaseUrl,
   getStripeCurrency,
+  getStripeCancelUrl,
+  getStripeSuccessUrl,
   getStripeWebhookSecret,
   toStripeAmount,
 } from "../src/services/stripe.js";
@@ -29,6 +31,26 @@ test("getCheckoutBaseUrl prefers APP_URL and trims trailing slash", () => {
   process.env.APP_URL = "https://example.com/";
 
   assert.equal(getCheckoutBaseUrl(), "https://example.com");
+
+  if (previous === undefined) {
+    delete process.env.APP_URL;
+  } else {
+    process.env.APP_URL = previous;
+  }
+});
+
+test("Stripe redirect URLs use the configured frontend URL", () => {
+  const previous = process.env.APP_URL;
+  process.env.APP_URL = "https://neonplay.example.com/";
+
+  assert.equal(
+    getStripeSuccessUrl(99),
+    "https://neonplay.example.com/thank-you?session_id={CHECKOUT_SESSION_ID}&order_id=99",
+  );
+  assert.equal(
+    getStripeCancelUrl(99),
+    "https://neonplay.example.com/checkout?canceled=1&order_id=99",
+  );
 
   if (previous === undefined) {
     delete process.env.APP_URL;

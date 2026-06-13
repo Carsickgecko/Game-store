@@ -21,6 +21,7 @@ import reviewsRoutes from "./routes/reviews.js";
 import developersRoutes from "./routes/developers.js";
 import publicApiRoutes from "./routes/publicApi.js";
 import apiDocsRoutes from "./routes/apiDocs.js";
+import stripeWebhookRoutes from "./routes/stripeWebhook.js";
 const app = express();
 
 app.use(
@@ -61,6 +62,9 @@ app.use(
     return cb(new Error("CORS blocked: " + origin));
   }),
 );
+
+// Stripe must receive the untouched raw body before the JSON parser runs.
+app.use("/api/v1/stripe", stripeWebhookRoutes);
 
 // ---------- Body parsing ----------
 app.use(express.json({ limit: "2mb" }));
