@@ -463,7 +463,6 @@ export default function Checkout() {
               <div className="mt-5 grid grid-cols-1 gap-4">
                 {PAYMENT_METHODS.map((method) => {
                   const active = paymentMethod === method.value;
-                  const showCardDetails = active && method.value === "card";
 
                   return (
                     <div key={method.value}>
@@ -502,44 +501,6 @@ export default function Checkout() {
                         </div>
                       </button>
 
-                      {showCardDetails ? (
-                        <div className="mt-3 rounded-[24px] border border-cyan-300/18 bg-cyan-300/8 p-5">
-                          <div className="flex items-center justify-between gap-4">
-                            <div>
-                              <div className="text-xl font-semibold text-white">
-                                {t("checkout.secureProvider")}
-                              </div>
-                              <p className="mt-3 text-sm leading-7 text-white/66">
-                                {t("checkout.secureProviderLead")}
-                              </p>
-                            </div>
-                            <div className="hidden items-center gap-2 sm:flex">
-                              <span className="rounded-xl bg-[#1c4ed8] px-3 py-2 text-xs font-black tracking-[0.2em] text-white">
-                                VISA
-                              </span>
-                              <span className="rounded-xl bg-[#111827] px-3 py-2 text-xs font-black tracking-[0.2em] text-white">
-                                MC
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-                            <div className="rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white/72">
-                              Stripe Checkout
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white/72">
-                              Visa / Mastercard
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white/72">
-                              3D Secure
-                            </div>
-                          </div>
-
-                          <p className="mt-2 text-xs leading-6 text-white/45">
-                            {t("checkout.realPaymentNote")}
-                          </p>
-                        </div>
-                      ) : null}
                     </div>
                   );
                 })}
