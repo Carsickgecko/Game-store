@@ -7,7 +7,7 @@ import { isAuthenticated } from "../store/auth.js";
 import { createCheckoutSession, createOrder } from "../api/orders.js";
 import { loadCart } from "../store/actions.js";
 import { useLanguage } from "../contexts/LanguageContext.jsx";
-import { toImageUrl } from "../utils/image.js";
+import { toImageUrl, publicAssetUrl } from "../utils/image.js";
 import CheckoutStepper from "../components/common/CheckoutStepper.jsx";
 
 const COUNTRY_CODES = [
@@ -539,7 +539,7 @@ export default function Checkout() {
                     className="h-14 w-14 rounded-xl border border-white/10 object-cover"
                     loading="lazy"
                     onError={(event) => {
-                      event.currentTarget.src = "/images/hero-bg.jpg";
+                      event.currentTarget.src = publicAssetUrl("/images/hero-bg.jpg");
                     }}
                   />
                   <div className="min-w-0 flex-1">

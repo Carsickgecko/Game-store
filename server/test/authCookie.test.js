@@ -55,7 +55,7 @@ test("getAuthCookieOptions switches to secure none cookies for https deployments
   const previousCookieSecure = process.env.COOKIE_SECURE;
   const previousSameSite = process.env.COOKIE_SAME_SITE;
 
-  process.env.APP_URL = "https://neonplay.azurestaticapps.net";
+  process.env.APP_URL = "https://carsickgecko.github.io/Game-store/";
   delete process.env.COOKIE_SECURE;
   delete process.env.COOKIE_SAME_SITE;
 
@@ -72,4 +72,28 @@ test("getAuthCookieOptions switches to secure none cookies for https deployments
 
   if (previousSameSite === undefined) delete process.env.COOKIE_SAME_SITE;
   else process.env.COOKIE_SAME_SITE = previousSameSite;
+});
+
+
+test("partitioned deployment cookies require HTTPS and retain the flag when cleared", () => {
+  const names = ["COOKIE_SECURE", "COOKIE_SAME_SITE", "COOKIE_PARTITIONED"];
+  const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  try {
+    process.env.COOKIE_SECURE = "true";
+    process.env.COOKIE_SAME_SITE = "none";
+    process.env.COOKIE_PARTITIONED = "true";
+    assert.equal(getAuthCookieOptions().partitioned, true);
+    let cleared;
+    clearAuthCookie({clearCookie(name, options) { cleared = options; }});
+    assert.equal(cleared.partitioned, true);
+    assert.equal(cleared.secure, true);
+    assert.equal(cleared.sameSite, "none");
+    process.env.COOKIE_SECURE = "false";
+    assert.equal(getAuthCookieOptions().partitioned, false);
+  } finally {
+    for (const name of names) {
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    }
+  }
 });

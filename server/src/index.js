@@ -1,6 +1,7 @@
 // server/src/index.js
 import express from "express";
 import cors from "cors";
+import { isPrivateOriginAllowed } from "./utils/cors.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -47,12 +48,7 @@ app.use(
       });
     }
 
-    const okLocal = /^http:\/\/localhost:\d+$/.test(origin);
-    const okAzureStatic = /^https:\/\/.*\.azurestaticapps\.net$/.test(origin);
-    const okAzureWeb = /^https:\/\/.*\.azurewebsites\.net$/.test(origin);
-    const okAzureStorageStatic = /^https:\/\/.*\.web\.core\.windows\.net$/.test(origin);
-
-    if (okLocal || okAzureStatic || okAzureWeb || okAzureStorageStatic) {
+    if (isPrivateOriginAllowed(origin)) {
       return cb(null, {
         origin: true,
         credentials: true,
@@ -115,6 +111,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
+const HOST = process.env.HOST || "0.0.0.0";
+app.listen(PORT, HOST, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

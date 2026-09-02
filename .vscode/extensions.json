@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "pkief.material-icon-theme",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "dsznajder.es7-react-js-snippets",
+    "ms-mssql.mssql",
+    "humao.rest-client"
+  ]
+}

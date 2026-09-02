@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toImageUrl } from "../src/utils/image.js";
+import { toImageUrl, publicAssetUrl } from "../src/utils/image.js";
 
 test("toImageUrl keeps absolute remote URLs", () => {
   assert.equal(
@@ -24,4 +24,10 @@ test("toImageUrl prefixes uploads with the API root", () => {
 test("toImageUrl returns fallback image for invalid input", () => {
   assert.equal(toImageUrl(""), "/images/hero-bg.jpg");
   assert.equal(toImageUrl("unknown-path"), "/images/hero-bg.jpg");
+});
+
+
+test("public assets respect the GitHub Pages repository path", () => {
+  assert.equal(publicAssetUrl("/images/logo-neonplay.png", "/Game-store/"), "/Game-store/images/logo-neonplay.png");
+  assert.equal(publicAssetUrl("images/hero-bg.jpg", "/"), "/images/hero-bg.jpg");
 });

@@ -15,7 +15,7 @@ import {
 import { useLanguage } from "../contexts/LanguageContext.jsx";
 import { fetchGameById, fetchGames } from "../api/games.js";
 import { fetchGameReviews } from "../api/reviews.js";
-import { toImageUrl } from "../utils/image.js";
+import { toImageUrl, publicAssetUrl } from "../utils/image.js";
 import {
   localizeGenre,
   localizePlatform,
@@ -308,7 +308,7 @@ export default function ProductDetail() {
             alt={product.name}
             className="h-full w-full scale-110 object-cover opacity-20 blur-2xl"
             onError={(event) => {
-              event.currentTarget.src = "/images/hero-bg.jpg";
+              event.currentTarget.src = publicAssetUrl("/images/hero-bg.jpg");
             }}
           />
           <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(10,10,10,0.94),rgba(20,20,20,0.72),rgba(20,20,20,0.94))]" />
@@ -335,7 +335,7 @@ export default function ProductDetail() {
                   className="h-full w-full object-cover"
                   loading="eager"
                   onError={(event) => {
-                    event.currentTarget.src = "/images/hero-bg.jpg";
+                    event.currentTarget.src = publicAssetUrl("/images/hero-bg.jpg");
                   }}
                 />
 

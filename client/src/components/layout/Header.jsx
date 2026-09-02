@@ -8,6 +8,7 @@ import {
   FaTimes,
   FaUserCircle,
 } from "react-icons/fa";
+import { publicAssetUrl } from "../../utils/image.js";
 import { getUser, logout } from "../../store/auth.js";
 import { useLanguage } from "../../contexts/LanguageContext.jsx";
 import { getCartItems } from "../../store/storage.js";
@@ -154,7 +155,7 @@ export default function Header() {
           <div className="flex items-center gap-3 lg:gap-5">
             <Link to="/" className="shrink-0">
               <img
-                src="/images/logo-neonplay.png"
+                src={publicAssetUrl("/images/logo-neonplay.png")}
                 alt="NeonPlay"
                 className="h-14 w-auto sm:h-16 lg:h-[4.6rem]"
               />

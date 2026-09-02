@@ -6,13 +6,13 @@ import { fetchMyRecommendations } from "../api/ai.js";
 import { fetchBestsellers, fetchHomeSlider, fetchTopDeals } from "../api/home.js";
 import { useLanguage } from "../contexts/LanguageContext.jsx";
 import { isAuthenticated } from "../store/auth.js";
-import { toImageUrl } from "../utils/image.js";
+import { toImageUrl, publicAssetUrl } from "../utils/image.js";
 import {
   localizeGenre,
   localizePlatform,
 } from "../utils/localizeStoreValue.js";
 
-const FALLBACK_IMG = "/images/hero-bg.jpg";
+const FALLBACK_IMG = publicAssetUrl("/images/hero-bg.jpg");
 
 function summarizeText(value, fallback = "", maxLength = 108) {
   const normalized = String(value || "")

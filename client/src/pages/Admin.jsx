@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toImageUrl } from "../utils/image.js";
 import { useNavigate } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 import { getUser, isAdmin, isAuthenticated } from "../store/auth.js";
@@ -50,13 +51,7 @@ function GameRow({ game, onEdit, onDelete, onToggle, t }) {
   return (
     <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center">
       <img
-        src={
-          game.image
-            ? game.image.startsWith("http")
-              ? game.image
-              : `http://localhost:5001${game.image}`
-            : "/images/hero-bg.jpg"
-        }
+        src={toImageUrl(game.image)}
         alt={game.name}
         className="h-16 w-24 rounded-2xl border border-white/10 object-cover"
       />
@@ -558,11 +553,7 @@ export default function Admin() {
 
                   {form.image ? (
                     <img
-                      src={
-                        form.image.startsWith("http")
-                          ? form.image
-                          : `http://localhost:5001${form.image}`
-                      }
+                      src={toImageUrl(form.image)}
                       alt={t("admin.previewAlt")}
                       className="mt-4 h-44 w-full rounded-2xl border border-white/10 object-cover"
                     />

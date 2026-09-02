@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "../../contexts/LanguageContext.jsx";
-import { toImageUrl } from "../../utils/image.js";
+import { toImageUrl, publicAssetUrl } from "../../utils/image.js";
 
 function getDiscountPercent(price, oldPrice) {
   const currentPrice = Number(price || 0);
@@ -78,7 +78,7 @@ export default function HeroSlider({ items = [], autoMs = 4500 }) {
           className="absolute inset-0 h-full w-full object-cover object-center"
           loading="eager"
           onError={(e) => {
-            e.currentTarget.src = "/images/hero-bg.jpg";
+            e.currentTarget.src = publicAssetUrl("/images/hero-bg.jpg");
           }}
         />
 

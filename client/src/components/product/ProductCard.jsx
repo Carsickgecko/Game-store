@@ -7,7 +7,7 @@ import {
   isWishlisted,
 } from "../../store/actions.js";
 import { useLanguage } from "../../contexts/LanguageContext.jsx";
-import { toImageUrl } from "../../utils/image.js";
+import { toImageUrl, publicAssetUrl } from "../../utils/image.js";
 
 export default function ProductCard({ product, mode = "store" }) {
   const { t } = useLanguage();
@@ -88,7 +88,7 @@ export default function ProductCard({ product, mode = "store" }) {
               alt={product.name || t("common.game")}
               className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
               loading="lazy"
-              onError={(e) => (e.currentTarget.src = "/images/hero-bg.jpg")}
+              onError={(e) => (e.currentTarget.src = publicAssetUrl("/images/hero-bg.jpg"))}
             />
           </div>
 

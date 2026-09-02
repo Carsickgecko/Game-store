@@ -4,7 +4,7 @@ import AccountShell from "../components/account/AccountShell.jsx";
 import { isAuthenticated } from "../store/auth.js";
 import { fetchMyOrders } from "../api/orders.js";
 import { useLanguage } from "../contexts/LanguageContext.jsx";
-import { toImageUrl } from "../utils/image.js";
+import { toImageUrl, publicAssetUrl } from "../utils/image.js";
 import {
   localizeGenre,
   localizePlatform,
@@ -208,7 +208,7 @@ export default function Orders() {
                               className="h-20 w-full rounded-2xl object-cover sm:w-32"
                               loading="lazy"
                               onError={(e) => {
-                                e.currentTarget.src = "/images/hero-bg.jpg";
+                                e.currentTarget.src = publicAssetUrl("/images/hero-bg.jpg");
                               }}
                             />
 

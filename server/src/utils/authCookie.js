@@ -37,6 +37,7 @@ export function getAuthCookieOptions() {
     httpOnly: true,
     sameSite,
     secure,
+    partitioned: secure && isTruthy(process.env.COOKIE_PARTITIONED),
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: "/",
     ...(domain ? { domain } : {}),

@@ -16,3 +16,5 @@ uploads/
 
 .DS_Store
 Thumbs.db
+
+.edge*-profile/

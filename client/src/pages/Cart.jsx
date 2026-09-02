@@ -10,7 +10,7 @@ import { getCartItems } from "../store/storage.js";
 import { loadCart, removeFromCart, updateCartQty } from "../store/actions.js";
 import { isAuthenticated } from "../store/auth.js";
 import { useLanguage } from "../contexts/LanguageContext.jsx";
-import { toImageUrl } from "../utils/image.js";
+import { toImageUrl, publicAssetUrl } from "../utils/image.js";
 import CheckoutStepper from "../components/common/CheckoutStepper.jsx";
 
 export default function Cart() {
@@ -174,7 +174,7 @@ export default function Cart() {
                             className="h-full w-full object-cover"
                             loading="lazy"
                             onError={(event) => {
-                              event.currentTarget.src = "/images/hero-bg.jpg";
+                              event.currentTarget.src = publicAssetUrl("/images/hero-bg.jpg");
                             }}
                           />
                         </div>
