@@ -45,7 +45,7 @@ Lệnh chỉ dừng backend và tunnel do script tạo. Nó không dừng SQL Se
 - Endpoint kiểm tra: `<Backend URL>/api/v1/health` phải trả `{"ok":true}`.
 - Build Pages bắt buộc có URL API HTTPS hợp lệ; sẽ dừng nếu biến bị thiếu hoặc còn trỏ về localhost/Azure.
 - Cookie đăng nhập công khai dùng `Secure`, `SameSite=None` và `Partitioned` để hỗ trợ phiên đăng nhập giữa GitHub Pages và backend. Trình duyệt chặn toàn bộ cookie vẫn có thể không giữ phiên.
-- Thanh toán Stripe, AI và các tích hợp ngoài vẫn cần khóa API hợp lệ; chuyển hosting không thay thế các tài khoản dịch vụ này.
+- Cấu hình Stripe thử nghiệm theo [STRIPE_SETUP.md](STRIPE_SETUP.md). Khi đã cấp khóa, script khởi động tự cập nhật webhook theo tunnel mới. AI và các tích hợp ngoài vẫn cần khóa API tương ứng.
 
 GitHub Pages phục vụ file tĩnh, không chạy Express/SQL Server. Xem [giới hạn GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits) trước khi dùng website cho hoạt động thương mại. Với cửa hàng vận hành thực tế, cần hosting phù hợp và giấy phép SQL phù hợp thay cho mô hình phát triển trên PC này.
 

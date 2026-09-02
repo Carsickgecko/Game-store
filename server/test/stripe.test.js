@@ -71,3 +71,20 @@ test("getStripeWebhookSecret trims the configured webhook secret", () => {
     process.env.STRIPE_WEBHOOK_SECRET = previous;
   }
 });
+
+
+test("Stripe redirects preserve the GitHub Pages hash route and its query parameters", () => {
+  const previous = process.env.APP_URL;
+  process.env.APP_URL = "https://carsickgecko.github.io/Game-store/#";
+  try {
+    const cancel = new URL(getStripeCancelUrl(99));
+    assert.equal(cancel.pathname, "/Game-store/");
+    assert.equal(cancel.search, "");
+    assert.equal(cancel.hash, "#/checkout?canceled=1&order_id=99");
+    assert.equal(getStripeCancelUrl(), "https://carsickgecko.github.io/Game-store/#/checkout?canceled=1");
+    assert.equal(getStripeSuccessUrl(99), "https://carsickgecko.github.io/Game-store/#/thank-you?session_id={CHECKOUT_SESSION_ID}&order_id=99");
+  } finally {
+    if (previous === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previous;
+  }
+});

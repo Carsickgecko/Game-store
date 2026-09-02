@@ -618,6 +618,7 @@ router.post("/checkout-session", authMiddleware, async (req, res) => {
         .json({ message: "Missing contact or billing information." });
     }
 
+    const stripe = getStripe();
     const serviceFee = Math.max(0, Number(req.body?.serviceFee || 0));
     const paymentFee = Math.max(0, Number(req.body?.paymentFee || 0));
     const currency = getStripeCurrency();
@@ -655,7 +656,6 @@ router.post("/checkout-session", authMiddleware, async (req, res) => {
       toOptionalFeeLineItem("Payment fee", paymentFee, currency),
     ].filter(Boolean);
 
-    const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer_email: contact.email,

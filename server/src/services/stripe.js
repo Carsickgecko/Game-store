@@ -30,14 +30,13 @@ export function getStripeSuccessUrl(orderId) {
 }
 
 export function getStripeCancelUrl(orderId) {
-  const url = new URL(`${getCheckoutBaseUrl()}/checkout`);
-  url.searchParams.set("canceled", "1");
+  const params = new URLSearchParams({ canceled: "1" });
 
   if (orderId) {
-    url.searchParams.set("order_id", String(orderId));
+    params.set("order_id", String(orderId));
   }
 
-  return url.toString();
+  return `${getCheckoutBaseUrl()}/checkout?${params.toString()}`;
 }
 
 export function toStripeAmount(value) {

@@ -80,7 +80,7 @@ try {
   @{
     backendPid = $backend.Id; backendStarted = $backend.StartTime.ToUniversalTime().Ticks.ToString()
     tunnelPid = $tunnel.Id; tunnelStarted = $tunnel.StartTime.ToUniversalTime().Ticks.ToString()
-    apiUrl = $apiUrl; siteUrl = $siteUrl; repository = $Repository
+    apiUrl = $apiUrl; siteUrl = $siteUrl; repository = $Repository; port = $Port
   } | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
 } catch {
   foreach ($ownedProcess in @($tunnel, $backend)) {
@@ -93,6 +93,14 @@ try {
 
 Write-Host "Backend: $apiUrl"
 Write-Host "Website: $siteUrl"
+$stripeResult = & $node (Join-Path $projectRoot 'server/scripts/configure-stripe-webhook.mjs') --api-url $apiUrl
+if ($LASTEXITCODE -eq 0) {
+  $stripeState = $stripeResult | ConvertFrom-Json
+  if ($stripeState.restartRequired) { & (Join-Path $PSScriptRoot 'restart-hosting-backend.ps1') }
+  if ($stripeState.status -eq 'configured') { Write-Host 'Stripe sandbox webhook is ready for the current tunnel.' }
+} else {
+  Write-Warning 'Hosting is running, but Stripe webhook setup failed. Check the local Stripe configuration.'
+}
 if ($UpdateGitHub) {
   & $gh variable set VITE_API_URL --body $apiUrl --repo $Repository
   if ($LASTEXITCODE -ne 0) { throw 'Hosting is running, but updating VITE_API_URL failed. See GITHUB_HOSTING.md.' }
