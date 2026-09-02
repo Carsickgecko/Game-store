@@ -15,6 +15,14 @@ Giá trị trên chỉ là ví dụ, không phải khóa dùng được. Dùng k
 
 Stripe CLI đã tải trên máy này tại `artifacts/stripe/cli/stripe.exe`. Cấu hình riêng của dự án nằm trong `artifacts/stripe/config.toml`, không commit. Khi CLI yêu cầu xác nhận thiết bị, mở liên kết Stripe cấp và nhập mã xác nhận trong trình duyệt.
 
+Có thể dùng cửa sổ nhập khóa có che nội dung trên Windows:
+
+```powershell
+pwsh -STA -File scripts/set-stripe-test-key.ps1
+```
+
+Dán khóa test và chọn **Luu va cau hinh**. Công cụ lưu khóa riêng trên máy, tạo webhook và nạp lại backend tự động.
+
 ## Tạo webhook và nạp cấu hình
 
 Khi hosting đang chạy, thực hiện từ thư mục gốc:
